@@ -6,7 +6,7 @@
          racket/runtime-path
          racket/gui)
 
-(define-runtime-path some-rom "Earthbound.smc")
+(define-runtime-path some-rom "Earthbound.sfc")
 
 (define frame (new frame%
                    [label "Super Nintendo"]
@@ -39,11 +39,13 @@
    (void)))
 (snes_set_input_state
  (λ (port device index id)
-   (printf "~v\n" (list 'input-state port device index id))
+   (printf "?")
+   #;(printf "~v\n" (list 'input-state port device index id))
    0))
 (snes_set_audio_sample
  (λ (left right)
-   (unless (and (zero? left) (zero? right))
+   (printf "!")
+   #;(unless (and (zero? left) (zero? right))
      (printf "~v\n" (list 'audio-sample left right)))))
 
 (define snes-pixels (make-bytes (* 512 239 4)))

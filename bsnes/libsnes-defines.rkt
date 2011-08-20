@@ -60,7 +60,8 @@
             (define SNES_DEVICE_ID_JUSTIFIER_Y        1)
             (define SNES_DEVICE_ID_JUSTIFIER_TRIGGER  2)
             (define SNES_DEVICE_ID_JUSTIFIER_START    3)))
-         _unsigned))
+         _unsigned
+         #:unknown (λ (x) 'UNKNOWN)))
 
 (define _snes_region
   (_enum '(SNES_REGION_NTSC = 0

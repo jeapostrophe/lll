@@ -2,6 +2,7 @@
 (require (for-syntax syntax/parse
                      racket/syntax
                      racket/base)
+         racket/list
          racket/contract
          racket/match)
 
@@ -75,9 +76,9 @@
     (define CLOCK 0)
     
     ;; Setup registers
-    (define A 0) ; Accumulator (16-bit)
-    (define X 0) ; Index (16-bit)
-    (define Y 0) ; Index (16-bit)
+    (define A 0) ; Accumulator (16-bit, when not P.M)
+    (define X 0) ; Index (16-bit, when not P.X)
+    (define Y 0) ; Index (16-bit, when not P.Y)
     (define S 0) ; Stack Pointer (16-bit)
     ; XXX Unused right now
     (define DB 0) ; Data Bank (8-bit)
@@ -92,14 +93,30 @@
     (define P.C #f) ; Carry
     (define P.D #f) ; Decimal
     (define P.I #f) ; IRQ Disable
-    (define P.X #f) ; Index register size
-    (define P.M #f) ; Accumulator register size
+    (define P.X #f) ; Index register size [#f = 16bit]
+    (define P.M #f) ; Accumulator register size [#f = 16bit]
     (define P.E #f) ; 6502 emulation mode
     (define P.B #f) ; Break
     (define PC rom-start) ; Program Counter (16-bit)
+    
+    ;;
+    (define (show-state include-memory?)
+      (list*
+       (cons 'A A)
+       (cons 'X X)
+       (cons 'Y Y)
+       (cons 'S S)
+       (cons 'DB DB)
+       (cons 'DP DP)
+       (cons 'PB PB)
+       (cons 'P (vector P.N P.V P.Z P.C P.D P.I P.X P.M P.E P.B))
+       (cons 'PC PC)
+       (if include-memory?
+           (list (cons 'RAM ram-bytes))
+           empty)))
      
     ;; Define opcodes
-    (define *opcodes* (make-vector 256 NOP))
+    ;;; XXX This is probably slow
     (define (do-opcode c)
       (error 'opcode "Unimplemented: ~v\n" c))
     (define-syntax-rule (install-opcode! c ? t)
@@ -182,7 +199,7 @@
     (define-syntax-rule (define-unimplemented-modes id ...)
       (begin (define-unimplemented-mode id) ...))
     (define-unimplemented-modes 
-      direct-page:index-indexed:x
+      direct-page:indirect-indexed:x
       stack-relative
       direct-page
       direct-page:indirect-long
@@ -197,6 +214,8 @@
       absolute-indexed:x
       absolute-long-indexed:x)
     
+    (define (accumulator $0)
+      (values #f A))
     (define (immediate-long $0 $1 $2)
       (values #f (8bit-8bit->16bit $1 $2)))
     (define (immediate-short $0 $1)
@@ -204,7 +223,7 @@
     
     ;; And here are the opcodes ...   
     (define-opcode-set ADC "Add With Carry"
-      ([direct-page:index-indexed:x #x61 2 6]
+      ([direct-page:indirect-indexed:x #x61 2 6]
        [stack-relative #x63 2 4]
        [direct-page #x65 2 3]
        [direct-page:indirect-long #x67 2 6]
@@ -224,7 +243,7 @@
       (set! A (16bit+ A $value)))
     
     (define-opcode-set AND "AND Accumulator With Memory"
-      ([direct-page:index-indexed:x #x21 2 6]
+      ([direct-page:indirect-indexed:x #x21 2 6]
        [stack-relative #x23 2 4]
        [direct-page #x25 2 3]
        [direct-page:indirect-long #x27 2 6]
@@ -241,19 +260,27 @@
        [absolute-long-indexed:x #x3F 4 5])
       (set! A (bitwise-and A $value)))
     
+    (define-opcode-set ASL "Arithmetic Shift Left"
+      ([direct-page #x06 2 5] ; XXX cycle note
+       [accumulator #x0A 1 2]
+       [absolute #x0E 3 6]
+       [direct-page:indexed:x #x16 2 6]
+       [absolute-indexed:x #x1E 3 7])
+      (set! A (arithmetic-shift A $value)))
+    
     (define-opcode STP #xDB
       "Stop Processor" 1 0
-      (esc (void)))
+      (esc (show-state #t)))
     (define-opcode NOP #xEA
       "No Operation" 1 2
       (void))
     
     ;; Loop
     (forever
-     (printf "~a: A: ~a X: ~a Y: ~a S: ~a PC: ~a\n"
-             CLOCK A X Y S PC)
+     (printf "~v\n" (show-state #f))
      (do-opcode (mem-ref PC)))))
 
+; XXX turn into tests
 (printf "ADC\n")
 (simulate
  (bytes #x69 0 5
@@ -276,5 +303,12 @@
         #x29 1
         #x69 0 2
         #x29 1
+        #xDB)
+ #x800000 0)
+
+(printf "ASL\n")
+(simulate
+ (bytes #x69 0 1
+        #x0A
         #xDB)
  #x800000 0)

@@ -6,25 +6,29 @@
          racket/match)
 
 ;; This is an implementation of a machine similar to the 65816
-(define (16-bit? x)
-  (and (exact-nonnegative-integer? x)
-       ((integer-length x) . <= . 16)))
 
-(define (bytes-of-16-bit-length? bs)
+(define ((make-n-bit? n) x)
+  (and (exact-nonnegative-integer? x)
+       ((integer-length x) . <= . n)))
+
+(define 16-bit? (make-n-bit? 16))
+(define 24-bit? (make-n-bit? 24))
+
+(define (bytes-of-24-bit-length? bs)
   (and (bytes? bs)
-       (16-bit? (bytes-length bs))))
+       (24-bit? (bytes-length bs))))
 
 (provide/contract
- [simulate (-> bytes-of-16-bit-length?
-               16-bit?
-               16-bit?
-               16-bit?
+ [simulate (-> bytes-of-24-bit-length?
+               24-bit?
+               24-bit?
                void)])
 
 ;; Library
 (define (make-within start end)
   (λ (addr)
-    (<= start addr end)))
+    (and (start . <= . addr)
+         (addr . < . end))))
 
 (define-syntax-rule (forever e ...)
   (let loop ()
@@ -35,12 +39,19 @@
   (λ (x y)
     (modulo (+ x y) limit)))
 
+(define 24bit+ (clamp-+ (expt 2 24)))
+(define 16bit+ (clamp-+ (expt 2 16)))
+(define 8bit+ (clamp-+ (expt 2 8)))
+
+(define (8bit-8bit->16bit high low)
+  (bitwise-ior (arithmetic-shift high 8) low))
+
 ;; Machine  
-(define (simulate rom-bytes rom-start
+(define (simulate rom-bytes
                   ram-start ram-size)
   (let/ec esc
-    ;; XXX Not implementing banking
     ;; Setup memory
+    (define rom-start 0)
     (define rom-size (bytes-length rom-bytes))
     (define rom-end (+ rom-start rom-size))
     (define in-rom? (make-within rom-start rom-end))
@@ -60,33 +71,51 @@
         [(? in-rom?)
          (error 'mem-set! "ROM is read-only")]))
     
-    ;; Ensure we implement 8-bit register, 16-bit semantics correctly
-    (define addr-add (clamp-+ (expt 2 16)))
-    (define byte-add (clamp-+ (expt 2 8)))
-
     ;; Let's keep track of how many cycles have run
     (define CLOCK 0)
-
-    ;; Setup registers
-    (define A 0)
-    (define X 0)
-    (define Y 0)
-    (define S 0)
-    (define DB 0)
-    (define DP 0)
-    (define PB 0)
-    (define P 0)
-    (define PC rom-start)
     
+    ;; Setup registers
+    (define A 0) ; Accumulator (16-bit)
+    (define X 0) ; Index (16-bit)
+    (define Y 0) ; Index (16-bit)
+    (define S 0) ; Stack Pointer (16-bit)
+    ; XXX Unused right now
+    (define DB 0) ; Data Bank (8-bit)
+    ; XXX Unused right now
+    (define DP 0) ; Direct Page (16-bit)
+    ; XXX Unused right now
+    (define PB 0) ; Program Bank (8-bit)
+    ;;; These are pieces of P -- the Processor Status
+    (define P.N #f) ; Negative
+    (define P.V #f) ; Overflow
+    (define P.Z #f) ; Zero
+    (define P.C #f) ; Carry
+    (define P.D #f) ; Decimal
+    (define P.I #f) ; IRQ Disable
+    (define P.X #f) ; Index register size
+    (define P.M #f) ; Accumulator register size
+    (define P.E #f) ; 6502 emulation mode
+    (define P.B #f) ; Break
+    (define PC rom-start) ; Program Counter (16-bit)
+     
     ;; Define opcodes
     (define *opcodes* (make-vector 256 NOP))
-    (define (do-opcode c) ((vector-ref *opcodes* c)))
-    (define (install-opcode! c t) (vector-set! *opcodes* c t))
+    (define (do-opcode c)
+      (error 'opcode "Unimplemented: ~v\n" c))
+    (define-syntax-rule (install-opcode! c ? t)
+      (let ([old-do-opcode do-opcode])
+        (set! do-opcode
+              (λ (some-c)
+                (if (and (= c some-c) ?)
+                    (t)
+                    (old-do-opcode some-c))))))
     
     (define-syntax (define-opcode stx)
       (syntax-parse 
        stx
        [(_ mnemonic:id opcode:nat desc:str args:nat cycles:nat
+           (~optional (~seq #:side-condition side-condition:expr)
+                      #:defaults ([side-condition #'#t]))
            e:expr ...)
         (with-syntax 
             ([($arg ...)
@@ -98,18 +127,120 @@
           (syntax/loc stx
             (begin
               (define (mnemonic)
-                (define $arg (mem-ref (addr-add PC argn)))
+                ; XXX fix PC manipulation
+                (define $arg (mem-ref (16bit+ PC argn)))
                 ...
-                (set! PC (addr-add PC args))
+                (set! PC (16bit+ PC args))
                 e ...
                 (set! CLOCK (+ CLOCK cycles)))
-              (install-opcode! opcode mnemonic))))]))
+              (install-opcode! opcode side-condition mnemonic))))]))
     
-    ;; And here they are...   
-    (define-opcode ADC/immediate #x69
-      "Add with Carry (Immediate)" 2 2
+    ;; Define a set of opcodes that differ only in addressing mode
+    (define-syntax (define-opcode-set stx)
+      (syntax-parse
+       stx
+       [(_ mnemonic:id desc:str
+           ([addressing-mode:id 
+             opcode:nat args:nat cycles:nat
+             (~optional side-condition:expr
+                        #:defaults ([side-condition #'#t]))]
+            ...)
+           e:expr ...)
+        (with-syntax
+            ([core:mnemonic (generate-temporary)]
+             [$value (format-id #'mnemonic "$value")]
+             [$addr (format-id #'mnemonic "$addr")]
+             [(mnemonic:addressing-mode ...) 
+              (for/list 
+                  ([am (in-list (syntax->list
+                                 #'(addressing-mode ...)))])
+                (format-id am "~a:~a" #'mnemonic am
+                           #:source am))]
+             [(($i ...) ...)
+              (for/list 
+                  ([am (in-list (syntax->list
+                                 #'(addressing-mode ...)))]
+                   [args (in-list (syntax->list
+                                   #'(args ...)))])
+                (for/list ([i (in-range (syntax->datum args))])
+                  (format-id #'mnemonic "$~a" i #:source #'args)))])
+          (syntax/loc stx
+            (begin 
+              (define (core:mnemonic $addr $value)
+                e ...)
+              (define-opcode mnemonic:addressing-mode opcode 
+                desc args cycles
+                #:side-condition side-condition
+                (call-with-values (λ () (addressing-mode $i ...))
+                                  core:mnemonic))
+              ...)))]))
+    
+    ;; Define addressing modes
+    ;;; addressing-mode : opcode args -> addr x value
+    (define-syntax-rule (define-unimplemented-mode id)
+      (define (id . args) (error 'id "Unimplemented: ~v" args)))
+    (define-syntax-rule (define-unimplemented-modes id ...)
+      (begin (define-unimplemented-mode id) ...))
+    (define-unimplemented-modes 
+      direct-page:index-indexed:x
+      stack-relative
+      direct-page
+      direct-page:indirect-long
+      absolute
+      absolute-long
+      direct-page:index-indexed:y
+      direct-page:indirect
+      stack-relative:indirect-indexed:y
+      direct-page:indexed:x
+      direct-page:indirect-long-indexed:y
+      absolute-indexed:y
+      absolute-indexed:x
+      absolute-long-indexed:x)
+    
+    (define (immediate-long $0 $1 $2)
+      (values #f (8bit-8bit->16bit $1 $2)))
+    (define (immediate-short $0 $1)
+      (values #f $1))
+    
+    ;; And here are the opcodes ...   
+    (define-opcode-set ADC "Add With Carry"
+      ([direct-page:index-indexed:x #x61 2 6]
+       [stack-relative #x63 2 4]
+       [direct-page #x65 2 3]
+       [direct-page:indirect-long #x67 2 6]
+       [immediate-short #x69 2 2 P.M]
+       [immediate-long #x69 3 2 (not P.M)]
+       [absolute #x6D 3 4]
+       [absolute-long #x6F 4 5]
+       [direct-page:index-indexed:y #x71 2 5] ; XXX cycle note
+       [direct-page:indirect #x72 2 5]
+       [stack-relative:indirect-indexed:y #x73 2 7]
+       [direct-page:indexed:x #x75 2 4]
+       [direct-page:indirect-long-indexed:y #x77 2 6]
+       [absolute-indexed:y #x79 3 4]
+       [absolute-indexed:x #x7D 3 4]
+       [absolute-long-indexed:x #x7F 4 5])
       ; XXX Do the carrying
-      (set! A (byte-add A $1)))
+      (set! A (16bit+ A $value)))
+    
+    (define-opcode-set AND "AND Accumulator With Memory"
+      ([direct-page:index-indexed:x #x21 2 6]
+       [stack-relative #x23 2 4]
+       [direct-page #x25 2 3]
+       [direct-page:indirect-long #x27 2 6]
+       [immediate-short #x29 2 2]
+       [absolute #x2D 3 4]
+       [absolute-long #x2F 4 5]
+       [direct-page:index-indexed:y #x31 2 5]
+       [direct-page:indirect #x32 2 5]
+       [stack-relative:indirect-indexed:y #x33 2 7]
+       [direct-page:indexed:x #x35 2 4]
+       [direct-page:indirect-long-indexed:y #x37 2 6]
+       [absolute-indexed:y #x39 3 4]
+       [absolute-indexed:x #x3D 3 4]
+       [absolute-long-indexed:x #x3F 4 5])
+      (set! A (bitwise-and A $value)))
+    
     (define-opcode STP #xDB
       "Stop Processor" 1 0
       (esc (void)))
@@ -123,17 +254,27 @@
              CLOCK A X Y S PC)
      (do-opcode (mem-ref PC)))))
 
+(printf "ADC\n")
 (simulate
- (bytes #x69 5
-        #x69 5
-        #x69 10
-        #x69 200
-        #x69 25
-        #x69 25
+ (bytes #x69 0 5
+        #x69 0 5
+        #x69 0 10
+        #x69 0 200
+        #x69 0 25
+        #x69 0 25
+        #x69 #xff #xff
         #xEA
         #xEA
         #xEA
         #xEA
         #xDB)
- 0 
+ #x800000 0)
+
+(printf "AND\n")
+(simulate
+ (bytes #x69 0 1
+        #x29 1
+        #x69 0 2
+        #x29 1
+        #xDB)
  #x800000 0)

@@ -7,6 +7,7 @@
          racket/match)
 
 ;; This is an implementation of a machine similar to the 65816
+;;; At the moment I don't plan on implementing the emulation modes
 
 (define ((make-n-bit? n) x)
   (and (exact-nonnegative-integer? x)
@@ -247,7 +248,8 @@
        [stack-relative #x23 2 4]
        [direct-page #x25 2 3]
        [direct-page:indirect-long #x27 2 6]
-       [immediate-short #x29 2 2]
+       [immediate-short #x29 2 2 P.M]
+       [immediate-long #x29 3 2 (not P.M)]
        [absolute #x2D 3 4]
        [absolute-long #x2F 4 5]
        [direct-page:index-indexed:y #x31 2 5]
@@ -266,7 +268,9 @@
        [absolute #x0E 3 6]
        [direct-page:indexed:x #x16 2 6]
        [absolute-indexed:x #x1E 3 7])
-      (set! A (arithmetic-shift A $value)))
+      (if $addr
+          (mem-set! $addr (arithmetic-shift $value 1))
+          (set! A (arithmetic-shift A 1))))
     
     (define-opcode STP #xDB
       "Stop Processor" 1 0
@@ -300,15 +304,16 @@
 (printf "AND\n")
 (simulate
  (bytes #x69 0 1
-        #x29 1
+        #x29 0 1
         #x69 0 2
-        #x29 1
+        #x29 0 1
         #xDB)
  #x800000 0)
 
 (printf "ASL\n")
 (simulate
  (bytes #x69 0 1
+        #x0A
         #x0A
         #xDB)
  #x800000 0)

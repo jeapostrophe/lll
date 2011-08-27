@@ -4,7 +4,7 @@
 ;-     If you use my code, please share your creations with me
 ;-     as I am always curious :)
 ;------------------------------------------------------------------------
-
+(provide (all-defined-out))
 
 ;----------------------------------------------------------------------------
 ; InitSNES -- my "standard" initialization of SNES memory and registers
@@ -50,14 +50,14 @@
   
   (ldx #x2101)
   (label _Loop00)		;regs $2101-$210C
-  (stz (addr #x00) X)		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
+  (stz/X (addr #x00))		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
   (inx)
   (cpx #x210D)
   (bne (label-ref _Loop00))
   
   (label _Loop01)		;regs $210D-$2114
-  (stz (addr #x00) X)		;Set all BG scroll values to $0000
-  (stz (addr #x00) X)
+  (stz/X (addr #x00))		;Set all BG scroll values to $0000
+  (stz/X (addr #x00))
   (inx)
   (cpx #x2115)
   (bne (label-ref _Loop01))
@@ -75,8 +75,8 @@
   
   (ldx #x211B)
   (label _Loop02)		;regs $211B-$2120
-  (stz (addr #x00) X)		;clear out the Mode7 matrix values
-  (stz (addr #x00) X)
+  (stz/X (addr #x00))		;clear out the Mode7 matrix values
+  (stz/X (addr #x00))
   (inx)
   (cpx #x2121)
   (bne (label-ref _Loop02))
@@ -86,7 +86,7 @@
   
   (ldx #x2123)
   (label _Loop03)		;regs $2123-$2133
-  (stz (addr #x00) X)		;turn off windows, main screens, sub screens, color addition,
+  (stz/X (addr #x00))		;turn off windows, main screens, sub screens, color addition,
   (inx)			;fixed color = $00, no super-impose (external synchronization),
   (cpx #x2134)	;no interlaced mode, normal resolution
   (bne (label-ref _Loop03))
@@ -174,9 +174,7 @@
   (stx (addr #x4300))         ;Set DMA mode to fixed source, BYTE to $2180
   (ldx (label-ref wram_fill_byte))
   (stx (addr #x4302))         ;Set source offset
-  
-  ; XXX This was #:UntitledData before and the one above was just 'UntitledData', not sure what that means, but the wla test case compiles something like below to A9
-  (lda (label-ref wram_fill_byte))
+  (lda (label-bank wram_fill_byte))
   (sta (addr #x4304))         ;Set source bank
   (ldx #x0000)
   (stx (addr #x4305))         ;Set transfer size to 64k bytes

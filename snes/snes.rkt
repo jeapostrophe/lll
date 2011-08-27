@@ -2,10 +2,16 @@
 (require (for-syntax racket/base
                      racket/syntax
                      syntax/parse)
+         racket/match
          racket/list
          "compiler.rkt")
 
-(struct *label (addr))
+(define (16bit-number? n)
+  (and (number? n)
+       (<= (integer-length n) 16)))
+(define (8bit-number? n)
+  (and (number? n)
+       (<= (integer-length n) 8)))
 
 (define-syntax-rule (define-unimplemented id)
   (begin
@@ -14,6 +20,62 @@
     (provide id)))
 (define-syntax-rule (define-unimplemented* id ...)
   (begin (define-unimplemented id) ...))
+
+(define (current-address)
+  (define-values (line col pos)
+    (port-next-location (current-output-port)))
+  pos)
+
+(struct label-use (name))
+(struct addr (constant))
+
+(define anonymous-labels (make-hasheq))
+(define (*label-use n)
+  (define effective-n
+    (match n
+      ['+
+       (define new (gensym '+))
+       (hash-set! anonymous-labels '+ new)
+       new]
+      ['-
+       (hash-ref anonymous-labels '-
+                 (λ () 
+                   (error 'label-ref
+                          "Use of - without previous definition")))]
+      [(? symbol?) n]))
+  (label-use effective-n))
+(define (*label-define! n a)
+  (define effective-n
+    (match n
+      ['-
+       (define new (gensym '-))
+       (hash-set! anonymous-labels '- new)
+       new]
+      ['+
+       (hash-ref anonymous-labels '+
+                 (λ () 
+                   (error 'label-ref
+                          "Definition of + without previous use")))]
+      [(? symbol?) n]))
+  (label-define! effective-n a))
+
+(define-syntax (label-ref stx)
+  (syntax-parse
+   stx
+   [(_ name:id)
+    (syntax/loc stx
+      (*label-use 'name))]))
+(define-syntax (snes-label stx)
+  (syntax-parse
+   stx
+   [(_ name:id)
+    (syntax/loc stx
+      (*label-define! 'name (current-address)))]))
+
+; XXX
+(define-syntax-rule (label-bank . e)
+  (begin (eprintf "Implemented label-bank\n")
+         0))
 
 (define-unimplemented* 
   define-memory-map  
@@ -24,46 +86,14 @@
   define-emulation-vector
   define-empty-fill
   data
-  macro-invoke
   ;; op codes
   sei ldx txs jsl sep asl eor inc 
-  clc lda tcd stx sta stz 
-  xce inx cpx 
+  clc tcd stx sta/X
+  xce 
   rep jsr dex cli 
-  OP:and cmp beq adc tax jmp dec lda.l ldy sty
+  OP:and cmp beq adc tax dec lda.l ldy sty
   xba wai
   )
-
-(define (current-address)
-  (define-values (line col pos)
-    (port-next-location (current-output-port)))
-  pos)
-
-(define-syntax (snes:- stx)
-  (syntax-parse
-   stx
-   [x:id
-    (syntax/loc stx
-      (first (unbox (current-back-references))))]))
-
-(define-syntax (label stx)
-  (syntax-parse
-   stx
-   #:literals (snes:- snes:+ snes:++)
-   [(_ snes:-)
-    (syntax/loc stx
-      (set-box! (current-back-references)
-                (list* (current-address)
-                       (current-back-references))))]
-   [(_ snes:+)
-    (syntax/loc stx
-      (rewrite-forward-references! (current-address) 1))]
-   [(_ snes:++)
-    (syntax/loc stx
-      (rewrite-forward-references! (current-address) 2))]
-   [(_ name:id)
-    (syntax/loc stx
-      (define name (current-address)))]))
 
 (define-syntax (define-opcode stx)
   (syntax-parse
@@ -78,8 +108,58 @@
           e ...)
         (provide op)))]))
 
+(define (write-absolute-label-use label)
+  (define addr 
+    (label-lookup! (label-use-name label)
+                   (current-address)
+                   'absolute))
+  (write-bytes addr))
+(define (write-absolute-label-or-const arg)
+  (match arg
+    [(addr (? 16bit-number? ad))
+     (write-bytes (integer->integer-bytes ad 2 #f))]
+    [(? label-use? lab)
+     (write-absolute-label-use lab)]))
+
+; XXX Some of these may be long, or otherwise exotic
+(define (lda arg)
+  (cond
+    ; XXX This may be wrong?
+    [(16bit-number? arg)
+     (write-byte #xA9)
+     (write-bytes (integer->integer-bytes arg 2 #f))]
+    [(number? arg)
+     (error 'lda "Argument too big: ~e/~e" 
+            arg
+            (number->string arg 16))]
+    [else
+     (write-byte #xAD)
+     (write-absolute-label-or-const arg)]))
+(provide lda)
+
+(define-opcode (lda/X arg) #xBD 4
+  (write-absolute-label-or-const arg))
+(define-opcode (sta arg) #x8D 4
+  (write-absolute-label-or-const arg))
+(define-opcode (stz arg) #x9C 4
+  (write-absolute-label-or-const arg))
+(define-opcode (stz/X arg) #x9E 5
+  (write-absolute-label-or-const arg))
+(define-opcode (inx) #xE8 2)
+(define-opcode (iny) #xC8 2)
+; XXX cycle/byte note
+; XXX can use addresses
+(define-opcode (cpx constant) #xE0 2
+  (write-byte constant))
+; XXX Some uses of this in the code may actually be JML
+(define-opcode (jmp label) #x4C 3
+  (write-absolute-label-use label))
 (define-opcode (bne near-label) #xD0 2
-  (write-byte (*label-addr near-label)))
+  (define near-addr 
+    (label-lookup! (label-use-name near-label)
+                   (current-address)
+                   'relative))  
+  (write-bytes near-addr))
 (define-opcode (pha) #x48 3)
 (define-opcode (phb) #x8B 3)
 (define-opcode (phd) #x0B 4)
@@ -122,49 +202,26 @@
        ...
        . e)
     (syntax/loc stx
-      (record-section! 
-       'name 
-       #:bank bank
-       #:slot slot
-       #:org org
-       #:force? force?
-       #:semi-free? semi-free?
-       (λ () 
-         (parameterize ([current-back-references (box empty)]
-                        [current-forward-references (box empty)])
-           . e))))]))
-
-(define-syntax (snes-require stx)
-  (syntax-parse
-   stx
-   [(_ pth)
-    (with-syntax ([make-code (format-id stx "make-code")]
-                  [this-make-code (generate-temporary)]) 
-      (syntax/loc stx
-        (begin
-          (local-require (rename-in pth 
-                                    [make-code this-make-code]))
-          ; XXX attach to environment
-          (this-make-code))))]))
-
-(define-syntax (snes-#%module-begin stx)
-  (syntax-parse 
-   stx
-   [(_ . e)
-    (with-syntax ([make-code (format-id stx "make-code")]) 
-      (syntax/loc stx
-        (#%module-begin
-         (define (make-code) . e)
-         (provide make-code))))]))
+      (define name
+        (λ ()
+          (record-section! 
+           'name 
+           #:bank bank
+           #:slot slot
+           #:org org
+           #:force? force?
+           #:semi-free? semi-free?
+           (λ () 
+             (parameterize
+                 ([current-back-references (box empty)]
+                  [current-forward-references (box empty)])
+               . e))))))]))
 
 (provide 
  ; From racket/base
- define #%datum #%app
+ #%module-begin require provide define #%datum #%app
+ all-defined-out
  ; From this
- define-section repeat label
+ define-section repeat label-ref addr label-bank
  (rename-out [OP:and and]
-             [snes:- -]
-             [snes:+ +]
-             [snes:++ ++]
-             [snes-#%module-begin #%module-begin]
-             [snes-require require]))
+             [snes-label label]))

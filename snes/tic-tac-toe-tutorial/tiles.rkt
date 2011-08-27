@@ -1,5 +1,10 @@
 #lang s-exp "../snes.rkt"
+(provide (all-defined-out))
 ; Created with eKid's pcx2snes converter ;
+
+(define-section Tiledata
+  #:bank 1 ; We'll use bank 1
+  #:slot 0 #:org 0
 
 (label UntitledData)
 (data
@@ -44,3 +49,4 @@
 
 ; 30 tiles (2 spaces)
 ; 480 bytes
+)

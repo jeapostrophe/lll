@@ -1,4 +1,5 @@
 #lang s-exp "../snes.rkt"
+(provide (all-defined-out))
 ;==LoRom==      ; We'll get to HiRom some other time.
 
 (define-memory-map ; Begin describing the system architecture.

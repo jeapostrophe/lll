@@ -1,6 +1,7 @@
 #lang s-exp "../snes.rkt"
-(require "header.rkt")
-(require "initSNES.rkt")
+(require "header.rkt"
+         "InitSNES.rkt")
+(provide Main)
 
 (define (ConvertX)
   ; Data in: our coord in A
@@ -43,7 +44,7 @@
   (beq (label-ref +))		; if it's 0, we don't have to delete
   (ldx #x0000)
   (label -)
-  (stz (addr #x0000) x)	; delete addresses $0000 to $0008
+  (stz/X (addr #x0000))	; delete addresses $0000 to $0008
   (inx)
   (cpx #x09)	; this is 9. Guess why (homework :) )
   (bne (label-ref -))
@@ -53,13 +54,13 @@
   (label +)
   (lda (addr #x0201))	; get back the temp value
   (and #b11000000)	; Care only about B and Y
-  (beq +)		; if empty, skip this
+  (beq (label-ref +))		; if empty, skip this
   ; so, B or Y is pressed. Let's say B is O,
   ; and Y is X.
   (cmp #b11000000)	; both are pressed?
-  (beq +)		; then don't do anything
+  (beq (label-ref +))		; then don't do anything
   (cmp #b10000000)	; B?
-  (bne +)		; no, try Y
+  (bne (label-ref +))		; no, try Y
   ; B is pressed, write an O ($08)
   ; we have to tell the cursor position,
   ; and calculate an address from that
@@ -74,12 +75,12 @@
   (ldx #x0000)	; be on the safe side
   (tax)
   (lda #x08)
-  (sta (addr #x0000) x)	; put $08 to the good address
-  (jmp +)		; done with this
+  (sta/X (addr #x0000))	; put $08 to the good address
+  (jmp (label-ref +))		; done with this
   
   (label ++)		; now for Y
   (cmp #b01000000)	; Y?
-  (bne +)		; no, jump forward (this should not happen)
+  (bne (label-ref +))		; no, jump forward (this should not happen)
   ; Y is pressed, write an X ($0A)
   (lda (addr #x0101))	; get Y
   (sta (addr #x0202))	; put it to a temp value
@@ -91,7 +92,7 @@
   (ldx (addr #x0000))	; be on the safe side
   (tax)
   (lda #x0A)
-  (sta (addr #x0000) x)	; put $0A to the good address
+  (sta/X (addr #x0000))	; put $0A to the good address
   (label +)		; finished putting tiles
   
   ; cursor moving comes now
@@ -100,37 +101,37 @@
   (sta (addr #x0201))	; store this
   
   (cmp #b00001000)	; up?
-  (bne +)		; if not, skip
+  (bne (label-ref +))		; if not, skip
   (lda (addr #x0101))	; get scroll Y
   (cmp #x00)	; if on the top,
-  (beq +)		; don't do anything
+  (beq (label-ref +))		; don't do anything
   (dec (addr #x0101))	; sub 1 from Y
   (label +)
   
   (lda (addr #x0201))	; get control
   (cmp #b00000100)	; down?
-  (bne +)		; if not, skip
+  (bne (label-ref +))		; if not, skip
   (lda (addr #x0101))
   (cmp #x02)	; if on the bottom,
-  (beq +)		; don't do anything
+  (beq (label-ref +))		; don't do anything
   (inc (addr #x0101))	; add 1 to Y
   (label +)
   
   (lda (addr #x0201))	; get control
   (cmp #b00000010)	; left?
-  (bne +)		; if not, skip
+  (bne (label-ref +))		; if not, skip
   (lda (addr #x0100))
   (cmp #x00)	; if on the left,
-  (beq +)		; don't do anything
+  (beq (label-ref +))		; don't do anything
   (dec (addr #x0100))	; sub 1 from X
   (label +)
   
   (lda (addr #x0201))	; get control
   (cmp #b00000001)	; right?
-  (bne +)		; if not, skip
+  (bne (label-ref +))		; if not, skip
   (lda (addr #x0100))
   (cmp #x02)	; if on the right,
-  (beq +)		; don't do anything
+  (beq (label-ref +))		; don't do anything
   (inc (addr #x0100))	; add 1 to X
   (label +)
   (rti))		; F|NisH3D!
@@ -146,23 +147,22 @@
   
   (ldx #x0000)
   (label -)
-  (lda UntitledPalette.l x)
+  (lda/X (label-ref UntitledPalette.l))
   (sta (addr #x2122))
   (inx)
   (cpx 8)
-  (bne -)
+  (bne (label-ref -))
   
   ;I'll explain this later
   ;We'll have two palettes, only one color is needed for the second:
   (lda 33)		;The color we need is the 33rd
   (sta (addr #x2121))
-  (lda.l Palette2)
+  (lda.l (label-ref Palette2))
   (sta (addr #x2122))
-  (lda.l (+ Palette2 1))
+  (lda.l (+ (label-ref Palette2) 1))
   (sta (addr #x2122))
-  (ldx (& UntitledData))	; Address
-  ; XXX This was #:UntitledData before and the one above was just 'UntitledData', not sure what that means, but the wla test case compiles something like below to A9
-  (lda (& UntitledData))	; of UntitledData 
+  (ldx (label-ref UntitledData))	; Address
+  (lda (label-bank UntitledData))	; of UntitledData 
   (ldy (* 15 16 2))	; length of data
   (stx (addr #x4302))	; write
   (sta (addr #x4304))	; address
@@ -256,7 +256,7 @@
   (lda #x0000)		; empty it
   (sep #b00100000)	; 8 bit A
   (lda (addr #x0100))		; get our X coord
-  (macro-invoke ConvertX)		; WLA needs a space before a macro name
+  (ConvertX)		; WLA needs a space before a macro name
   (sta (addr #x210F))		; BG2 horz scroll
   (xba)
   (sta (addr #x210F))		; write 16 bits
@@ -266,7 +266,7 @@
   (lda #x0000)		; empty it
   (sep #b00100000)	; 8 bit A
   (lda (addr #x0101))		; get our Y coord
-  (macro-invoke ConvertY)		; WLA needs a space before a macro name
+  (ConvertY)		; WLA needs a space before a macro name
   (sta (addr #x2110))		; BG2 vert scroll
   (xba)
   (sta (addr #x2110))		; write 16 bits
@@ -276,27 +276,21 @@
   (rep #b00100000)		; 16 bit A
   (lda #x0000)		; empty it
   (sep #b00100000)		; 8 bit a
-  (lda VRAMtable.l x)	; this is a long indexed address, nice :)
+  (lda/X (label-ref VRAMtable.l))	; this is a long indexed address, nice :)
   (rep #b00100000)
   (clc)
   (adc #x4000)		; add $4000 to the value
   (sta (addr #x2116))		; write to VRAM from here
   (lda #x0000)		; reset A while it's still 16 bit
   (sep #b00100000)		; 8 bit A
-  (lda (addr #x0000) x)		; get the corresponding tile from RAM
+  (lda/X (addr #x0000))		; get the corresponding tile from RAM
   ; VRAM data write mode is still %10000000
   (sta (addr #x2118))		; write
   (stz (addr #x2119))		; this is the hi-byte
   (inx)
   (cpx 9)			; finished?
-  (bne -)			; no, go back
-  (jmp forever))
-
-(define-section Tiledata
-  #:bank 1 ; We'll use bank 1
-  #:slot 0 #:org 0
-  ; If you are using your own tiles, replace this
-  (require "tiles.rkt"))
+  (bne (label-ref -))			; no, go back
+  (jmp (label-ref forever)))
 
 (define-section Conversiontable
   #:bank 2 #:slot 0 #:org 0

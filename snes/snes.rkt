@@ -1,5 +1,6 @@
 #lang racket/base
 (require (for-syntax racket/base
+                     racket/list
                      racket/syntax
                      syntax/parse)
          racket/match
@@ -26,11 +27,11 @@
     (port-next-location (current-output-port)))
   pos)
 
-(struct label-use (name))
+(struct label-use (name kind))
 (struct addr (constant))
 
 (define anonymous-labels (make-hasheq))
-(define (*label-use n)
+(define (*label-use n [kind 'default])
   (define effective-n
     (match n
       ['+
@@ -43,7 +44,7 @@
                    (error 'label-ref
                           "Use of - without previous definition")))]
       [(? symbol?) n]))
-  (label-use effective-n))
+  (label-use effective-n kind))
 (define (*label-define! n a)
   (define effective-n
     (match n
@@ -62,20 +63,15 @@
 (define-syntax (label-ref stx)
   (syntax-parse
    stx
-   [(_ name:id)
+   [(_ name:id . args)
     (syntax/loc stx
-      (*label-use 'name))]))
+      (*label-use 'name . args))]))
 (define-syntax (snes-label stx)
   (syntax-parse
    stx
    [(_ name:id)
     (syntax/loc stx
       (*label-define! 'name (current-address)))]))
-
-; XXX
-(define-syntax-rule (label-bank . e)
-  (begin (eprintf "Implemented label-bank\n")
-         0))
 
 (define-unimplemented* 
   define-memory-map  
@@ -198,12 +194,16 @@
                    #:defaults ([force? #'#f]))
         (~optional (~seq #:semi-free
                          (~bind [semi-free? #'#t]))
-                   #:defaults ([semi-free? #'#f]))) 
+                   #:defaults ([semi-free? #'#f]))
+        (~optional (~seq #:links
+                         (other-section:expr ...))
+                   #:defaults ([(other-section 1) empty]))) 
        ...
        . e)
     (syntax/loc stx
       (define name
         (λ ()
+          (other-section) ...
           (record-section! 
            'name 
            #:bank bank
@@ -220,8 +220,8 @@
 (provide 
  ; From racket/base
  #%module-begin require provide define #%datum #%app
- all-defined-out
+ all-defined-out quote
  ; From this
- define-section repeat label-ref addr label-bank
+ define-section repeat label-ref addr
  (rename-out [OP:and and]
              [snes-label label]))

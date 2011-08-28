@@ -110,7 +110,7 @@
       (for ([r (in-list refs)])
         (match-define (label-reference use-addr kind) r)
         (bytes-copy! the-bytes use-addr
-                     (format-addr label-addr kind))))
+                     (format-addr label-addr use-addr kind))))
     the-bytes))
 
 (provide (all-defined-out))

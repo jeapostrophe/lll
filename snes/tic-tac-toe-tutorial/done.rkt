@@ -1,6 +1,7 @@
 #lang s-exp "../snes.rkt"
 (require "header.rkt"
-         "InitSNES.rkt")
+         "InitSNES.rkt"
+         "tiles.rkt")
 (provide Main)
 
 (define (ConvertX)
@@ -140,6 +141,8 @@
 (define-section Main
   #:bank 0 #:slot 0 #:org 0
   ;--------------------------------------
+  #:links (Tiledata Conversiontable)
+  
   (label Start)
   (InitSNES)
   (rep #b00010000)	;16 bit xy
@@ -147,7 +150,7 @@
   
   (ldx #x0000)
   (label -)
-  (lda/X (label-ref UntitledPalette.l))
+  (lda/X (label-ref UntitledPalette 'long))
   (sta (addr #x2122))
   (inx)
   (cpx 8)
@@ -162,7 +165,7 @@
   (lda.l (+ (label-ref Palette2) 1))
   (sta (addr #x2122))
   (ldx (label-ref UntitledData))	; Address
-  (lda (label-bank UntitledData))	; of UntitledData 
+  (lda (label-ref UntitledData 'bank))	; of UntitledData 
   (ldy (* 15 16 2))	; length of data
   (stx (addr #x4302))	; write
   (sta (addr #x4304))	; address
@@ -276,7 +279,7 @@
   (rep #b00100000)		; 16 bit A
   (lda #x0000)		; empty it
   (sep #b00100000)		; 8 bit a
-  (lda/X (label-ref VRAMtable.l))	; this is a long indexed address, nice :)
+  (lda/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
   (rep #b00100000)
   (clc)
   (adc #x4000)		; add $4000 to the value

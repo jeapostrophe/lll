@@ -174,7 +174,7 @@
   (stx (addr #x4300))         ;Set DMA mode to fixed source, BYTE to $2180
   (ldx (label-ref wram_fill_byte))
   (stx (addr #x4302))         ;Set source offset
-  (lda (label-bank wram_fill_byte))
+  (lda (label-ref wram_fill_byte 'bank))
   (sta (addr #x4304))         ;Set source bank
   (ldx #x0000)
   (stx (addr #x4305))         ;Set transfer size to 64k bytes

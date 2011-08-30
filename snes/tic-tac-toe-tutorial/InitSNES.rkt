@@ -196,7 +196,7 @@
   (rtl)
   
   (label wram_fill_byte)
-  (data #x00)
+  (data (bytes #x00))
   
   ;----------------------------------------------------------------------------
   ; ClearVRAM -- Sets every byte of VRAM to zero

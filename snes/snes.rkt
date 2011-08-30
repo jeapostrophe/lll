@@ -81,15 +81,17 @@
   define-native-vector
   define-emulation-vector
   define-empty-fill
-  data
   ;; op codes
-  sei ldx txs jsl sep asl eor inc 
+  sei ldx txs jsl asl eor inc 
   clc tcd stx sta/X
   xce 
   rep jsr dex cli 
-  OP:and cmp beq adc tax dec lda.l ldy sty
+  OP:and cmp beq tax dec lda.l ldy sty
   xba wai
   )
+
+(define (data bs)
+  (write-bytes bs))
 
 (define-syntax (define-opcode stx)
   (syntax-parse
@@ -118,20 +120,24 @@
      (write-absolute-label-use lab)]))
 
 ; XXX Some of these may be long, or otherwise exotic
-(define (lda arg)
-  (cond
-    ; XXX This may be wrong?
-    [(16bit-number? arg)
-     (write-byte #xA9)
-     (write-bytes (integer->integer-bytes arg 2 #f))]
-    [(number? arg)
-     (error 'lda "Argument too big: ~e/~e" 
-            arg
-            (number->string arg 16))]
-    [else
-     (write-byte #xAD)
-     (write-absolute-label-or-const arg)]))
-(provide lda)
+(define (make-lda-like const-opcode addr-opcode)
+  (λ (arg)
+    (cond
+      ; XXX This may be wrong?
+      [(16bit-number? arg)
+       (write-byte #xA9)
+       (write-bytes (integer->integer-bytes arg 2 #f))]
+      [(number? arg)
+       (error 'lda "Argument too big: ~e/~e" 
+              arg
+              (number->string arg 16))]
+      [else
+       (write-byte #xAD)
+       (write-absolute-label-or-const arg)])))
+
+(define lda (make-lda-like #xA9 #xAD))
+(define adc (make-lda-like #x69 #x6D))
+(provide lda adc)
 
 (define-opcode (lda/X arg) #xBD 4
   (write-absolute-label-or-const arg))
@@ -172,6 +178,8 @@
 (define-opcode (rti) #x40 6)
 (define-opcode (rtl) #x6B 6)
 (define-opcode (rts) #x60 6)
+(define-opcode (sep imm) #xE2 3
+  (write-byte imm))
 
 (define-syntax-rule (repeat n . e)
   (for ([i (in-range n)]) . e))
@@ -220,8 +228,8 @@
 (provide 
  ; From racket/base
  #%module-begin require provide define #%datum #%app
- all-defined-out quote
+ all-defined-out quote bytes
  ; From this
- define-section repeat label-ref addr
+ define-section repeat label-ref addr data
  (rename-out [OP:and and]
              [snes-label label]))

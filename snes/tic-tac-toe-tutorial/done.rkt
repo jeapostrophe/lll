@@ -298,4 +298,4 @@
 (define-section Conversiontable
   #:bank 2 #:slot 0 #:org 0
   (label VRAMtable)
-  (data #x00 #x02 #x04 #x40 #x42 #x44 #x80 #x82 #x84))
+  (data (bytes #x00 #x02 #x04 #x40 #x42 #x44 #x80 #x82 #x84)))

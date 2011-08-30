@@ -4,7 +4,9 @@
          racket/path
          racket/port)
 
-(struct rom-layout (rom-bank-size rom-banks props sections))
+(struct rom-layout (lo-rom? id name cartridge-type rom-size sram-size country-code license-code version slow-rom?
+                             native-interrupt->label
+                             rom-bank-size rom-banks empty-fill sections))
 (define (make-rom #:rom-bank-size rom-bank-size
                   #:rom-banks rom-banks
                   #:id id ; XXX 1-4 letter string
@@ -21,21 +23,10 @@
                   #:emulation-interrupts emulation-interrupt->label
                   #:empty-fill [empty-fill #x00]
                   #:sections [sections empty])
-  (rom-layout 
-   rom-bank-size rom-banks
-   (hasheq 'id id
-           'name name
-           'slow-rom? slow-rom?
-           'lo-rom? lo-rom?
-           'cartridge-type cartridge-type
-           'rom-size rom-size
-           'sram-size sram-size
-           'country country
-           'license-code license-code
-           'version version
-           'native-interrupts native-interrupt->label
-           'emulation-interrupts emulation-interrupt->label
-           'empty-fill empty-fill)
+  (rom-layout
+   lo-rom? id name cartridge-type rom-size sram-size country license-code version slow-rom?
+   native-interrupt->label
+   rom-bank-size rom-banks empty-fill
    sections))
 
 (struct section (name bank force? semi-free? thunk)
@@ -120,27 +111,85 @@
             "Label ~e has already been defined"
             the-label)]))
 
+(struct label-use (name kind))
+(define (write-label-use label kind)
+  (define addr 
+    (label-lookup! (label-use-name label)
+                   (current-address)
+                   kind))
+  (write-bytes addr))
+
 (define (current-address)
   (file-position (current-output-port)))
 
+(define (write-bytes@ out pos bs)
+  (file-position out pos)
+  (write-bytes bs out))
+(define (read-byte@ in pos)
+  (file-position in pos)
+  (read-byte in))
+
+(define (16bit+ x y)
+  (modulo (+ x y) (expt 2 16)))
+
 (define (compile-rom pth rl)
-  (match-define (rom-layout rom-bank-size rom-banks props these-sections) rl)
+  (match-define
+   (struct* rom-layout ([lo-rom? lo-rom?]
+                        [slow-rom? slow-rom?]
+                        [id id]
+                        [name name]
+                        [rom-bank-size rom-bank-size]
+                        [rom-banks rom-banks]
+                        [empty-fill empty-fill]
+                        [rom-size rom-size]
+                        [sram-size sram-size]
+                        [native-interrupt->label native-interrupt->label]
+                        [country-code country-code]
+                        [license-code license-code]
+                        [version version]
+                        [cartridge-type cartridge-type]
+                        [sections these-sections]))
+   rl)
   (define total-rom-size
     (* rom-bank-size 
        rom-banks))
   (define bank->start (make-hasheq))
   (for ([bank (in-range rom-banks)])
     (hash-set! bank->start bank (* bank rom-bank-size)))
-    
+
+  (define header-start (if lo-rom? #x7F00 #xFF00))
+  
   (define labels (make-hasheq))
   (call-with-output-file pth
     #:mode 'binary #:exists 'replace
     (λ (out)
+       ; Empty fill
       (for ([i (in-range total-rom-size)])
-        (write-byte (hash-ref props 'empty-fill) out))
-      
+        (write-byte empty-fill out))
+
+      ; Write header
+      ;; XXX look at http://patpend.net/technical/snes/sneskart.html#embededcartridge
+      (write-bytes@ out (+ header-start #xB2) id)
+      (write-bytes@ out (+ header-start #xC0) name)
+      (write-bytes@ out (+ header-start #xD5) (bytes (if slow-rom? #x20 #x00)))
+      (write-bytes@ out (+ header-start #xD6) (bytes cartridge-type))
+      (write-bytes@ out (+ header-start #xD7) (bytes rom-size))
+      (write-bytes@ out (+ header-start #xD8) (bytes sram-size))
+      (write-bytes@ out (+ header-start #xD9) (bytes country-code))
+      (write-bytes@ out (+ header-start #xDA) (bytes license-code))
+      (write-bytes@ out (+ header-start #xDB) (bytes version))
+
       (parameterize ([current-labels labels])
-        ; Write sections
+        ;; Write interrupt tables
+        (file-position out (+ header-start #xE4))
+        (write-label-use (hash-ref native-interrupt->label 'COP) 'absolute)
+        (write-label-use (hash-ref native-interrupt->label 'BRK) 'absolute)
+        (write-label-use (hash-ref native-interrupt->label 'ABORT) 'absolute)
+        (write-label-use (hash-ref native-interrupt->label 'NMI) 'absolute)
+        (write-bytes (bytes #x00 #x000))
+        (write-label-use (hash-ref native-interrupt->label 'IRQ) 'absolute)
+
+        ;; Write sections        
         (parameterize ([current-output-port out])
           (for ([s (in-list these-sections)])
             (match-define (section name bank force? semi-free? thunk) s)
@@ -148,6 +197,8 @@
             (file-position out bank-start)
             (thunk)
             (hash-set! bank->start bank (current-address))))
+
+        
         ; Rewrite labels
         (for ([(label-name l) (in-hash labels)])
           (match-define (label label-addr refs) l)
@@ -157,9 +208,44 @@
                    label-name))
           (for ([r (in-list refs)])
             (match-define (label-reference use-addr kind) r)
-            (file-position out use-addr)
-            (write-bytes (format-addr label-addr use-addr kind) out))))
-      
-      (flush-output out))))
+            (write-bytes@ out use-addr (format-addr label-addr use-addr kind)))))))
+
+  ;; Discover the checksum (copied from WLALINK, compute.c)
+  (define-values
+    (inverse-checksum checksum)
+    (call-with-input-file pth
+      #:mode 'binary
+      (λ (in)
+         (define n #f)
+         (define m #f)
+
+         (if (total-rom-size . < . (* 512 1024))
+             (begin (set! n total-rom-size)
+                    (set! m 0))
+             (error 'xxx))
+
+         (define x 0)
+         (for ([i (in-range 0 n)])
+              (if lo-rom?
+                  (unless (<= #x7FDC i #x7FDF)
+                    (set! x (16bit+ x (read-byte@ in i))))
+                  (unless (<= #xFFDC i #xFFDF)
+                    (set! x (16bit+ x (read-byte@ in i))))))
+
+         (set! x (16bit+ x (* 2 255)))
+
+         (define l (bitwise-xor (bitwise-and x #xFFFF) #xFFFF))
+
+         (values l x))))
+
+  ;; Write the checksum
+  (call-with-output-file pth
+    #:mode 'binary #:exists 'update
+    (λ (out)
+     (write-bytes@ out (+ header-start #xDC)
+                   (bytes-append (integer->integer-bytes inverse-checksum 2 #f)
+                                 (integer->integer-bytes checksum 2 #f)))))
+  
+  )
 
 (provide (all-defined-out))

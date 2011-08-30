@@ -308,9 +308,9 @@
    #:rom-bank-size #x8000              ; Every ROM bank is 32 KBytes in size
    #:rom-banks 8                    ; 2 Mbits - Tell WLA we want to use 8 ROM Banks
    
-   #:id "SNES"                     ; 1-4 letter string, just leave it as "SNES"
+   #:id #"SNES"                     ; 1-4 letter string, just leave it as "SNES"
    
-   #:name "A small game         "  ; Program Title - can't be over 21 bytes,
+   #:name #"A small game         "  ; Program Title - can't be over 21 bytes,
    ;    "123456789012345678901"  ; use spaces for unused bytes of the name.
    
    #:slow-rom? #t
@@ -324,22 +324,22 @@
    #:version #x00                   ; #x00 = 1.00, #x01 = 1.01, etc.
    
    #:native-interrupts
-   `([COP ,(label-ref EmptyHandler)]
-     [BRK ,(label-ref EmptyHandler)]
-     [ABORT ,(label-ref EmptyHandler)]
-     [NMI ,(label-ref VBlank)]
-     [IRQ ,(label-ref EmptyHandler)])
+   (hasheq 'COP (label-ref EmptyHandler)
+           'BRK (label-ref EmptyHandler)
+           'ABORT (label-ref EmptyHandler)
+           'NMI (label-ref VBlank)
+           'IRQ (label-ref EmptyHandler))
    
    #:emulation-interrupts
-   `([COP ,(label-ref EmptyHandler)]
-     [ABORT ,(label-ref EmptyHandler)]
-     [NMI ,(label-ref VBlank)]
-     [RESET ,(label-ref Start)]  ; where execution starts
-     [IRQBRK ,(label-ref EmptyHandler)])
+   (hasheq 'COP (label-ref EmptyHandler)
+           'ABORT (label-ref EmptyHandler)
+           'NMI (label-ref VBlank)
+           'RESET (label-ref Start) ; where execution starts
+           'IRQBRK (label-ref EmptyHandler))
    
    ; fill unused areas with #x00, opcode for BRK.  
    ; BRK will crash the snes if executed.
    #:empty-fill #x00
    
    #:sections 
-   (list InitializeSNESCode Tiledata Conversiontable)))
+   (list InitializeSNESCode EmptyVectors Vblank Main Tiledata Conversiontable)))

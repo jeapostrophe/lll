@@ -17,7 +17,6 @@
   (and (number? n)
        (<= (integer-length n) 8)))
 
-(struct label-use (name kind))
 (struct addr (constant))
 
 (define anonymous-labels (make-hasheq))
@@ -79,12 +78,6 @@
           e ...)
         (provide op)))]))
 
-(define (write-label-use label kind)
-  (define addr 
-    (label-lookup! (label-use-name label)
-                   (current-address)
-                   kind))
-  (write-bytes addr))
 (define (write-absolute-label-or-const arg)
   (match arg
     [(addr (? 16bit-number? ad))
@@ -246,7 +239,7 @@
  ; From racket/base
  #%module-begin require provide define #%datum #%app
  all-defined-out quote bytes * +
- quasiquote unquote empty list
+ quasiquote unquote empty list hasheq
  ; From this
  define-section repeat label-ref addr data make-rom
  (rename-out [OP:and and]

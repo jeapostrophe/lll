@@ -12,11 +12,15 @@
      [addr (in-naturals)])
     (cond
       [(and (= g e) diff-addr)
-       (printf "~a: expected: ~a\n~a:      got: ~a\n\n"
+       (define got-bs  (subbytes got diff-addr addr))
+       (define expected-bs (subbytes expected diff-addr addr))
+       (printf "~a: expected: ~a\t~v\n~a:      got: ~a\t~v\n\n"
                (number->string diff-addr 16)
-               (bytes->hex-string (subbytes got diff-addr addr))
+               (bytes->hex-string got-bs)
+               got-bs
                (number->string diff-addr 16)
-               (bytes->hex-string (subbytes expected diff-addr addr)))
+               (bytes->hex-string expected-bs)
+               expected-bs)
        #f]
       [(= g e)
        #f]

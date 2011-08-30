@@ -29,7 +29,7 @@
 
 (define-section InitializeSNESCode
   #:force
-  #:bank 0 #:slot 0 #:org 0
+  #:bank 0
   (label InitializeSNES)
   (phk)			;set Data Bank = Program Bank
   (plb)
@@ -52,14 +52,14 @@
   (label _Loop00)		;regs $2101-$210C
   (stz/X (addr #x00))		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
   (inx)
-  (cpx #x210D)
+  (cpx.l #x210D)
   (bne (label-ref _Loop00))
   
   (label _Loop01)		;regs $210D-$2114
   (stz/X (addr #x00))		;Set all BG scroll values to $0000
   (stz/X (addr #x00))
   (inx)
-  (cpx #x2115)
+  (cpx.l #x2115)
   (bne (label-ref _Loop01))
   
   (lda #x80)		;reg $2115
@@ -78,7 +78,7 @@
   (stz/X (addr #x00))		;clear out the Mode7 matrix values
   (stz/X (addr #x00))
   (inx)
-  (cpx #x2121)
+  (cpx.l #x2121)
   (bne (label-ref _Loop02))
   
   ;reg $2121 - Color address, doesn't need initilaizing
@@ -88,7 +88,7 @@
   (label _Loop03)		;regs $2123-$2133
   (stz/X (addr #x00))		;turn off windows, main screens, sub screens, color addition,
   (inx)			;fixed color = $00, no super-impose (external synchronization),
-  (cpx #x2134)	;no interlaced mode, normal resolution
+  (cpx.l #x2134)	;no interlaced mode, normal resolution
   (bne (label-ref _Loop03))
   
   ;regs $2134-$2136  - multiplication result, no initialization needed

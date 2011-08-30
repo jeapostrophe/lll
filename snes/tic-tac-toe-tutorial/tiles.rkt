@@ -4,7 +4,6 @@
 
 (define-section Tiledata
   #:bank 1 ; We'll use bank 1
-  #:slot 0 #:org 0
   
   (label UntitledData)
   (data
@@ -48,7 +47,9 @@
   (label Palette2)
   (data
    (bytes
-    #xE0 #x7F))
+    #xE0))
+  (label Palette2PlusOne)
+  (data (bytes #x7F))
   
   ; 30 tiles (2 spaces)
   ; 480 bytes

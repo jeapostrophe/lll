@@ -1,31 +1,34 @@
 #lang s-exp "../snes.rkt"
-(require "header.rkt"
-         "InitSNES.rkt"
+(require "InitSNES.rkt"
          "tiles.rkt")
-(provide Main)
+(provide ROM)
+
+(define-section EmptyVectors
+  #:bank 0 #:semi-free
+  (label EmptyHandler)
+  (rti))
 
 (define (ConvertX)
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
   (repeat 5
-          (asl a))		; multiply A by 32
+          (asl/A))		; multiply A by 32
   (rep #b00100000)	; 16 bit A
   (eor #xFFFF)	; this will do A=1-A
-  (inc a)		; A=A+1
+  (ina)		; A=A+1
   (sep #b00100000))	; 8 bit A
 
 (define (ConvertY)
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
   (repeat 5
-          (asl a))		; multiply A by 32
+          (asl/A))		; multiply A by 32
   (rep #b00100000)	; 16 bit A
   (eor #xFFFF)	; this will do A=1-A
   (sep #b00100000))	; 8 bit A
 
 (define-section Vblank
-  #:bank 0 #:slot 0
-  #:org 0
+  #:bank 0
   
   ;--------------------------------------
   (label VBlank)
@@ -139,9 +142,8 @@
 ;--------------------------------------
 
 (define-section Main
-  #:bank 0 #:slot 0 #:org 0
+  #:bank 0 
   ;--------------------------------------
-  #:links (Tiledata Conversiontable)
   
   (label Start)
   (InitSNES)
@@ -162,7 +164,7 @@
   (sta (addr #x2121))
   (lda.l (label-ref Palette2))
   (sta (addr #x2122))
-  (lda.l (+ (label-ref Palette2) 1))
+  (lda.l (label-ref Palette2PlusOne) #;(+ (label-ref Palette2) 1))
   (sta (addr #x2122))
   (ldx (label-ref UntitledData))	; Address
   (lda (label-ref UntitledData 'bank))	; of UntitledData 
@@ -209,7 +211,7 @@
           (stx (addr #x2118))
           (ldx #x0000)
           (repeat 27
-                  (stx $2118)))
+                  (stx (addr #x2118))))
   (repeat 2
           (ldx #x0000)	; tile 0 ( )
           (stx (addr #x2118))
@@ -296,6 +298,48 @@
   (jmp (label-ref forever)))
 
 (define-section Conversiontable
-  #:bank 2 #:slot 0 #:org 0
+  #:bank 2 
   (label VRAMtable)
   (data (bytes #x00 #x02 #x04 #x40 #x42 #x44 #x80 #x82 #x84)))
+
+(define ROM
+  (make-rom
+   ;==LoRom==      ; We'll get to HiRom some other time.
+   #:rom-bank-size #x8000              ; Every ROM bank is 32 KBytes in size
+   #:rom-banks 8                    ; 2 Mbits - Tell WLA we want to use 8 ROM Banks
+   
+   #:id "SNES"                     ; 1-4 letter string, just leave it as "SNES"
+   
+   #:name "A small game         "  ; Program Title - can't be over 21 bytes,
+   ;    "123456789012345678901"  ; use spaces for unused bytes of the name.
+   
+   #:slow-rom? #t
+   #:lo-rom? #t
+   
+   #:cartridge-type #x00             ; #x00 = ROM only, see WLA documentation for others
+   #:rom-size #x08                   ; #x08 = 2 Mbits,  see WLA doc for more..
+   #:sram-size #x00                  ; No SRAM         see WLA doc for more..
+   #:country #x01                   ; #x01 = U.S.  #x00 = Japan, that's all I know
+   #:license-code #x00              ; Just use #x00
+   #:version #x00                   ; #x00 = 1.00, #x01 = 1.01, etc.
+   
+   #:native-interrupts
+   `([COP ,(label-ref EmptyHandler)]
+     [BRK ,(label-ref EmptyHandler)]
+     [ABORT ,(label-ref EmptyHandler)]
+     [NMI ,(label-ref VBlank)]
+     [IRQ ,(label-ref EmptyHandler)])
+   
+   #:emulation-interrupts
+   `([COP ,(label-ref EmptyHandler)]
+     [ABORT ,(label-ref EmptyHandler)]
+     [NMI ,(label-ref VBlank)]
+     [RESET ,(label-ref Start)]  ; where execution starts
+     [IRQBRK ,(label-ref EmptyHandler)])
+   
+   ; fill unused areas with #x00, opcode for BRK.  
+   ; BRK will crash the snes if executed.
+   #:empty-fill #x00
+   
+   #:sections 
+   (list InitializeSNESCode Tiledata Conversiontable)))

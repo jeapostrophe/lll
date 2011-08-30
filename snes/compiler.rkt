@@ -1,21 +1,50 @@
 #lang racket/base
 (require racket/list
          racket/match
+         racket/path
          racket/port)
 
-(struct section (name bank slot org force? semi-free? thunk)
+(struct rom-layout (rom-bank-size rom-banks props sections))
+(define (make-rom #:rom-bank-size rom-bank-size
+                  #:rom-banks rom-banks
+                  #:id id ; XXX 1-4 letter string
+                  #:name name ; XXX 21 bytes, exactly
+                  #:slow-rom? [slow-rom? #f]
+                  #:lo-rom? [lo-rom? #f]
+                  #:cartridge-type [cartridge-type #x00]
+                  #:rom-size rom-size
+                  #:sram-size sram-size
+                  #:country country
+                  #:license-code license-code
+                  #:version version
+                  #:native-interrupts native-interrupt->label
+                  #:emulation-interrupts emulation-interrupt->label
+                  #:empty-fill [empty-fill #x00]
+                  #:sections [sections empty])
+  (rom-layout 
+   rom-bank-size rom-banks
+   (hasheq 'id id
+           'name name
+           'slow-rom? slow-rom?
+           'lo-rom? lo-rom?
+           'cartridge-type cartridge-type
+           'rom-size rom-size
+           'sram-size sram-size
+           'country country
+           'license-code license-code
+           'version version
+           'native-interrupts native-interrupt->label
+           'emulation-interrupts emulation-interrupt->label
+           'empty-fill empty-fill)
+   sections))
+
+(struct section (name bank force? semi-free? thunk)
         #:transparent)
 
-(define current-section-box (make-parameter #f))
-(define (record-section! name 
-                         #:bank bank #:slot slot #:org org
-                         #:force? force? #:semi-free? semi-free?
-                         thunk)
-  (define b (current-section-box))
-  (set-box! 
-   b
-   (list* (section name bank slot org force? semi-free? thunk)
-          (unbox b))))
+(define (make-section name 
+                      #:bank bank #:force? force? #:semi-free? semi-free?
+                      thunk)
+  (section name bank force? semi-free? thunk))
 
 (define current-labels (make-parameter #f))
 (struct label (actual-address references)
@@ -26,8 +55,14 @@
 
 ; Addresses should be 24 bits
 (define HIGH-BITS #b111111110000000000000000)
+(define MIDL-BITS #b000000001111111100000000)
+(define LOWR-BITS #b000000000000000011111111)
 (define (format-addr addr use-addr kind)
   (match kind
+    ['long
+     (bytes (bitwise-bit-field addr 16 24)
+            (bitwise-bit-field addr 8 16)
+            (bitwise-bit-field addr 0 8))]
     ; The two addresses share the first 8 bits
     ['absolute
      (cond
@@ -85,32 +120,46 @@
             "Label ~e has already been defined"
             the-label)]))
 
-(define (compile make-code)
+(define (current-address)
+  (file-position (current-output-port)))
+
+(define (compile-rom pth rl)
+  (match-define (rom-layout rom-bank-size rom-banks props these-sections) rl)
+  (define total-rom-size
+    (* rom-bank-size 
+       rom-banks))
+  (define bank->start (make-hasheq))
+  (for ([bank (in-range rom-banks)])
+    (hash-set! bank->start bank (* bank rom-bank-size)))
+    
   (define labels (make-hasheq))
-  (parameterize ([current-labels labels])
-    ; Discover sections
-    (define this-section-box (box empty))
-    (parameterize ([current-section-box this-section-box])
-      (make-code))
-    (define these-sections (unbox this-section-box))
-    ; Write sections
-    (define the-bytes
-      (with-output-to-bytes
-          (λ ()
-            (port-count-lines! (current-output-port))
-            (for ([s (in-list these-sections)])
-              ((section-thunk s))))))
-    ; Rewrite labels
-    (for ([(label-name l) (in-hash labels)])
-      (match-define (label label-addr refs) l)
-      (unless label-addr
-        (error 'compile 
-               "Label ~e was never defined"
-               label-name))
-      (for ([r (in-list refs)])
-        (match-define (label-reference use-addr kind) r)
-        (bytes-copy! the-bytes use-addr
-                     (format-addr label-addr use-addr kind))))
-    the-bytes))
+  (call-with-output-file pth
+    #:mode 'binary #:exists 'replace
+    (λ (out)
+      (for ([i (in-range total-rom-size)])
+        (write-byte (hash-ref props 'empty-fill) out))
+      
+      (parameterize ([current-labels labels])
+        ; Write sections
+        (parameterize ([current-output-port out])
+          (for ([s (in-list these-sections)])
+            (match-define (section name bank force? semi-free? thunk) s)
+            (define bank-start (hash-ref bank->start bank))
+            (file-position out bank-start)
+            (thunk)
+            (hash-set! bank->start bank (current-address))))
+        ; Rewrite labels
+        (for ([(label-name l) (in-hash labels)])
+          (match-define (label label-addr refs) l)
+          (unless label-addr
+            (error 'compile 
+                   "Label ~e was never defined"
+                   label-name))
+          (for ([r (in-list refs)])
+            (match-define (label-reference use-addr kind) r)
+            (file-position out use-addr)
+            (write-bytes (format-addr label-addr use-addr kind) out))))
+      
+      (flush-output out))))
 
 (provide (all-defined-out))

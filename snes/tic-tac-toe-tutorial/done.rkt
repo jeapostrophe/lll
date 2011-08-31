@@ -342,4 +342,4 @@
    #:empty-fill #x00
    
    #:sections 
-   (list InitializeSNESCode EmptyVectors Vblank Main Tiledata Conversiontable)))
+   (list InitializeSNESCode Main Vblank EmptyVectors Tiledata Conversiontable)))

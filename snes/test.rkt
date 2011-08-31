@@ -16,11 +16,11 @@
        (define expected-bs (subbytes expected diff-addr addr))
        (printf "~a: expected: ~a\t~v\n~a:      got: ~a\t~v\n\n"
                (number->string diff-addr 16)
-               (bytes->hex-string got-bs)
-               got-bs
-               (number->string diff-addr 16)
                (bytes->hex-string expected-bs)
-               expected-bs)
+               expected-bs
+               (number->string diff-addr 16)
+               (bytes->hex-string got-bs)
+               got-bs)
        #f]
       [(= g e)
        #f]

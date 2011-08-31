@@ -24,9 +24,7 @@
   (define effective-n
     (match n
       ['+
-       (define new (gensym '+))
-       (hash-set! anonymous-labels '+ new)
-       new]
+       (hash-ref! anonymous-labels '+ (lambda () (gensym '+)))]
       ['-
        (hash-ref anonymous-labels '-
                  (λ () 
@@ -42,10 +40,13 @@
        (hash-set! anonymous-labels '- new)
        new]
       ['+
-       (hash-ref anonymous-labels '+
-                 (λ () 
-                   (error 'label-ref
-                          "Definition of + without previous use")))]
+       (define next (gensym '+))
+       (begin0
+         (hash-ref anonymous-labels '+
+                   (λ () 
+                      (error 'label-ref
+                             "Definition of + without previous use")))
+         (hash-set! anonymous-labels '+ next))]
       [(? symbol?) n]))
   (label-define! effective-n a))
 
@@ -65,18 +66,39 @@
 (define (data bs)
   (write-bytes bs))
 
+(define-syntax (define-opcode* stx)
+  (syntax-parse
+   stx
+   [(_ (op:id arg:id ...) body:expr ...)
+    (syntax/loc stx
+      (define-opcode* op (lambda (arg ...) body ...)))]
+   [(_ op:id val:expr)
+    (syntax/loc stx
+      (define-opcode* op op val))]
+   [(_ op:id out-op:id val:expr)
+    (syntax/loc stx
+      (begin
+        (define inner-op val)
+        (define (wrap-op stx . args)
+          (debug-opcode stx)
+          (apply inner-op args))
+        (define-syntax (op stx)
+          (syntax-case stx ()
+            [(_ . args)
+             (quasisyntax/loc stx
+               (wrap-op #'#,stx . args))]))
+        (provide (rename-out [op out-op]))))]))
+
 (define-syntax (define-opcode stx)
   (syntax-parse
    stx
    [(_ (op:id arg:id ...) opcode:expr cycles:nat
        e:expr ...)
     (syntax/loc stx
-      (begin 
-        ; XXX record cycles
-        (define (op arg ...)
-          (write-byte opcode)
-          e ...)
-        (provide op)))]))
+      ;; XXX record cycles
+      (define-opcode* (op arg ...)
+        (write-byte opcode)
+        e ...))]))
 
 (define (write-absolute-label-or-const arg)
   (match arg
@@ -90,6 +112,14 @@
      (write-bytes (subbytes (integer->integer-bytes ad 4 #f) 1 4))]
     [(? label-use? lab)
      (write-label-use lab 'long)]))
+(define (write-label-or-const arg)
+  (match arg
+    [(addr (? 16bit-number? ad))
+     (write-absolute-label-or-const arg)]
+    [(addr (? 24bit-number? ad))
+     (write-long-label-or-const arg)]
+    [(? label-use? lab)
+     (write-label-use lab (label-use-kind lab))]))
 
 ; XXX Some of these may be long, or otherwise exotic
 (define (make-lda-like const-opcode addr-opcode)
@@ -116,8 +146,8 @@
                    'relative))  
   (write-bytes near-addr))
 
-(define adc (make-lda-like #x69 #x6D)) (provide adc)
-(define OP:and (make-lda-like #x29 #x2D))
+(define-opcode* adc (make-lda-like #x69 #x6D))
+(define-opcode* OP:and and (make-lda-like #x29 #x2D))
 (define-opcode (asl/A) #x0A 2)
 (define-opcode (asl arg) #x0E 6
   (write-absolute-label-or-const arg))
@@ -129,7 +159,7 @@
 (define-opcode (cld) #xD8 2)
 (define-opcode (cli) #x58 2)
 (define-opcode (clv) #xB8 2)
-(define cmp (make-lda-like #xC9 #xCD)) (provide cmp)
+(define-opcode* cmp (make-lda-like #xC9 #xCD))
 ; XXX cycle/byte note
 ; XXX can use addresses
 (define-opcode (cpx constant) #xE0 2
@@ -140,7 +170,7 @@
   (write-absolute-label-or-const arg))
 (define-opcode (dex) #xCA 2)
 (define-opcode (dey) #x88 2)
-(define eor (make-lda-like #x49 #x4D)) (provide eor)
+(define-opcode* eor (make-lda-like #x49 #x4D))
 (define-opcode (ina) #x1A 2)
 (define-opcode (inc arg) #xEE 6
   (write-absolute-label-or-const arg))
@@ -153,13 +183,13 @@
   (write-long-label-or-const arg))
 (define-opcode (jsr arg) #x20 6
   (write-absolute-label-or-const arg))
-(define lda (make-lda-like #xA9 #xAD)) (provide lda)
+(define-opcode* lda (make-lda-like #xA9 #xAD))
 (define-opcode (lda.l arg) #xBF 5
   (write-long-label-or-const arg))
 (define-opcode (lda/X arg) #xBD 4
-  (write-absolute-label-or-const arg))
-(define ldx (make-lda-like #xA2 #xAE)) (provide ldx)
-(define ldy (make-lda-like #xA0 #xAC)) (provide ldy)
+  (write-short-label-or-const arg))
+(define-opcode* ldx (make-lda-like #xA2 #xAE))
+(define-opcode* ldy (make-lda-like #xA0 #xAC))
 (define-opcode (pha) #x48 3)
 (define-opcode (phb) #x8B 3)
 (define-opcode (phd) #x0B 4)
@@ -190,6 +220,8 @@
 (define-opcode (sty arg) #x8C 4
   (write-absolute-label-or-const arg))
 (define-opcode (stz arg) #x9C 4
+  (write-absolute-label-or-const arg))
+(define-opcode (stz/DP/X arg) #x74 5
   (write-absolute-label-or-const arg))
 (define-opcode (stz/X arg) #x9E 5
   (write-absolute-label-or-const arg))
@@ -242,5 +274,4 @@
  quasiquote unquote empty list hasheq
  ; From this
  define-section repeat label-ref addr data make-rom
- (rename-out [OP:and and]
-             [snes-label label]))
+ (rename-out [snes-label label]))

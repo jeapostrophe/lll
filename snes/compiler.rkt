@@ -1,6 +1,7 @@
 #lang racket/base
 (require racket/list
          racket/match
+         file/sha1
          racket/path
          racket/port)
 
@@ -48,7 +49,8 @@
 (define HIGH-BITS #b111111110000000000000000)
 (define MIDL-BITS #b000000001111111100000000)
 (define LOWR-BITS #b000000000000000011111111)
-(define (format-addr addr use-addr kind)
+(define (hex v) (format "#x~a" (number->string v 16)))
+(define (format-addr name addr use-addr kind)
   (match kind
     ['long
      (bytes (bitwise-bit-field addr 16 24)
@@ -65,8 +67,8 @@
        [else
         (error 
          'format-addr
-         "Absolute addr references do not share upper 8-bits: ~e and ~e"
-         addr use-addr)])]
+         "~a: Absolute addr references do not share upper 8-bits: addr(~a:~a) and use(~a)"
+         (hex (current-address)) name (hex addr) (hex use-addr))])]
     ; The two addresses are within 128 bytes
     ['relative
      (define diff (- use-addr addr))
@@ -81,11 +83,11 @@
             #b10000000))]
        [else
         (error 'format-addr
-               "Distance too far for relative addr: ~e from ~e" 
-               addr use-addr)])]
+               "Distance too far for relative addr: addr(~a:~a) from use(~a)" 
+               name (hex addr) (hex use-addr))])]
     [x
-     (error 'format-addr "Can't format ~v to ~e from ~v" 
-            addr x use-addr)]))
+     (error 'format-addr "Can't format addr(~a:~a) to ~e from use(~a)" 
+            name (hex addr) x (hex use-addr))]))
 
 (define (label-lookup! the-label use-addr kind)
   (match-define
@@ -94,12 +96,12 @@
               (λ () (label #f empty))))
   (cond
     [actual
-     (format-addr actual use-addr kind)]
+     (format-addr the-label actual use-addr kind)]
     [else
      (set-label-references! l
                             (list* (label-reference use-addr kind)
                                    refs))
-     (format-addr 0 0 kind)]))
+     (format-addr the-label 0 0 kind)]))
 (define (label-define! the-label actual-addr)
   (match
    (hash-ref! (current-labels) the-label
@@ -131,6 +133,10 @@
 
 (define (16bit+ x y)
   (modulo (+ x y) (expt 2 16)))
+
+(define current-debug (make-parameter #f))
+(define (debug-opcode src)
+  (fprintf (current-debug) "~a\t~a\n" (hex (current-address)) src))
 
 (define (compile-rom pth rl)
   (match-define
@@ -179,27 +185,32 @@
       (write-bytes@ out (+ header-start #xDA) (bytes license-code))
       (write-bytes@ out (+ header-start #xDB) (bytes version))
 
-      (parameterize ([current-labels labels])
+      (parameterize ([current-labels labels]
+                     [current-output-port out])
         ;; Write interrupt tables
         (file-position out (+ header-start #xE4))
         (write-label-use (hash-ref native-interrupt->label 'COP) 'absolute)
         (write-label-use (hash-ref native-interrupt->label 'BRK) 'absolute)
         (write-label-use (hash-ref native-interrupt->label 'ABORT) 'absolute)
         (write-label-use (hash-ref native-interrupt->label 'NMI) 'absolute)
-        (write-bytes (bytes #x00 #x000))
+        (write-bytes (bytes #x00 #x000) out)
         (write-label-use (hash-ref native-interrupt->label 'IRQ) 'absolute)
 
-        ;; Write sections        
-        (parameterize ([current-output-port out])
-          (for ([s (in-list these-sections)])
-            (match-define (section name bank force? semi-free? thunk) s)
-            (define bank-start (hash-ref bank->start bank))
-            (file-position out bank-start)
-            (thunk)
-            (hash-set! bank->start bank (current-address))))
+        ;; Write sections
+        (call-with-output-file
+            (format "~a.debug" pth) #:exists 'replace
+            (lambda (dout)
+              (parameterize ([current-debug dout])
+                (for ([s (in-list these-sections)])
+                  (match-define (section name bank force? semi-free? thunk) s)
+                  (define bank-start (hash-ref bank->start bank))
+                  (file-position out bank-start)
+                  (thunk)
+                  (hash-set! bank->start bank (current-address))
+                  (eprintf "Wrote ~a from ~a to ~a in bank ~a\n"
+                           name (hex bank-start) (hex (current-address)) bank)))))
 
-        
-        ; Rewrite labels
+        ;; Rewrite labels
         (for ([(label-name l) (in-hash labels)])
           (match-define (label label-addr refs) l)
           (unless label-addr
@@ -208,7 +219,14 @@
                    label-name))
           (for ([r (in-list refs)])
             (match-define (label-reference use-addr kind) r)
-            (write-bytes@ out use-addr (format-addr label-addr use-addr kind)))))))
+            (define written-addr (format-addr label-name label-addr use-addr kind))
+            (eprintf "Rewrote ~a to use ~a (the ~a form of ~a which is called ~a)\n"
+                     (hex use-addr) 
+                     (bytes->hex-string written-addr)
+                     kind
+                     (hex label-addr)
+                     label-name)
+            (write-bytes@ out use-addr written-addr))))))
 
   ;; Discover the checksum (copied from WLALINK, compute.c)
   (define-values
@@ -244,8 +262,6 @@
     (λ (out)
      (write-bytes@ out (+ header-start #xDC)
                    (bytes-append (integer->integer-bytes inverse-checksum 2 #f)
-                                 (integer->integer-bytes checksum 2 #f)))))
-  
-  )
+                                 (integer->integer-bytes checksum 2 #f))))))
 
 (provide (all-defined-out))

@@ -39,7 +39,8 @@
   (section name bank force? semi-free? thunk))
 
 (define current-labels (make-parameter #f))
-(struct label (actual-address references)
+(define current-bank (make-parameter #f))
+(struct label (actual-address bank references)
         #:transparent
         #:mutable)
 (struct label-reference (use-address kind)
@@ -50,8 +51,10 @@
 (define MIDL-BITS #b000000001111111100000000)
 (define LOWR-BITS #b000000000000000011111111)
 (define (hex v) (format "#x~a" (number->string v 16)))
-(define (format-addr name addr use-addr^ kind)
+(define (format-addr name addr bank use-addr^ kind)
   (match kind
+    ['bank
+     (bytes bank)]
     ['long
      (bytes (bitwise-bit-field addr 16 24)
             (bitwise-bit-field addr 8 16)
@@ -91,23 +94,24 @@
 
 (define (label-lookup! the-label use-addr kind)
   (match-define
-   (and l (label actual refs))
+   (and l (label actual bank refs))
    (hash-ref! (current-labels) the-label
-              (λ () (label #f empty))))
+              (λ () (label #f #f empty))))
   (cond
     [actual
-     (format-addr the-label actual use-addr kind)]
+     (format-addr the-label actual bank use-addr kind)]
     [else
      (set-label-references! l
                             (list* (label-reference use-addr kind)
                                    refs))
-     (format-addr the-label 0 0 kind)]))
+     (format-addr the-label 0 0 0 kind)]))
 (define (label-define! the-label actual-addr)
   (match
    (hash-ref! (current-labels) the-label
-              (λ () (label #f empty)))
-    [(and l (label #f refs))
-     (set-label-actual-address! l actual-addr)]
+              (λ () (label #f #f empty)))
+    [(and l (label #f #f refs))
+     (set-label-actual-address! l actual-addr)
+     (set-label-bank! l (current-bank))]
     [_
      (error 'label-define!
             "Label ~e has already been defined"
@@ -205,21 +209,22 @@
                   (match-define (section name bank force? semi-free? thunk) s)
                   (define bank-start (hash-ref bank->start bank))
                   (file-position out bank-start)
-                  (thunk)
+                  (parameterize ([current-bank bank])
+                    (thunk))
                   (hash-set! bank->start bank (current-address))
                   (eprintf "Wrote ~a from ~a to ~a in bank ~a\n"
                            name (hex bank-start) (hex (current-address)) bank)))))
 
         ;; Rewrite labels
         (for ([(label-name l) (in-hash labels)])
-          (match-define (label label-addr refs) l)
+          (match-define (label label-addr bank refs) l)
           (unless label-addr
             (error 'compile 
                    "Label ~e was never defined"
                    label-name))
           (for ([r (in-list refs)])
             (match-define (label-reference use-addr kind) r)
-            (define written-addr (format-addr label-name label-addr use-addr kind))
+            (define written-addr (format-addr label-name label-addr bank use-addr kind))
             (eprintf "Rewrote ~a to use ~a (the ~a form of ~a which is called ~a)\n"
                      (hex use-addr) 
                      (bytes->hex-string written-addr)

@@ -7,15 +7,12 @@
          racket/list
          "compiler.rkt")
 
-(define (24bit-number? n)
-  (and (number? n)
-       (<= (integer-length n) 16)))
-(define (16bit-number? n)
-  (and (number? n)
-       (<= (integer-length n) 16)))
-(define (8bit-number? n)
-  (and (number? n)
-       (<= (integer-length n) 8)))
+(define ((make-nbit-number? n) x)
+  (and (number? x)
+       (< x (expt 2 n))))
+(define 24bit-number? (make-nbit-number? 24))
+(define 16bit-number? (make-nbit-number? 16))
+(define 8bit-number? (make-nbit-number? 8))
 
 (struct addr (constant))
 
@@ -122,11 +119,11 @@
      (write-label-use lab (label-use-kind lab))]))
 
 ; XXX Some of these may be long, or otherwise exotic
-(define (make-lda-like const-opcode addr-opcode)
+(define (make-lda-like const-opcode addr-opcode #:8bit? [8bit? #f])
   (λ (arg)
     (cond
       ; XXX This may be wrong?
-      [(8bit-number? arg)
+      [(and 8bit? (8bit-number? arg))
        (write-byte const-opcode)
        (write-byte arg)]
       [(16bit-number? arg)
@@ -136,6 +133,9 @@
        (error 'lda "Argument too big: ~e/~e" 
               arg
               (number->string arg 16))]
+      [(and (label-use? arg) (eq? 'bank (label-use-kind arg)))
+       (write-byte const-opcode)
+       (write-label-use arg 'bank)]
       [else
        (write-byte addr-opcode)
        (write-absolute-label-or-const arg)])))
@@ -183,7 +183,7 @@
   (write-long-label-or-const arg))
 (define-opcode (jsr arg) #x20 6
   (write-absolute-label-or-const arg))
-(define-opcode* lda (make-lda-like #xA9 #xAD))
+(define-opcode* lda (make-lda-like #xA9 #xAD #:8bit? #t))
 (define-opcode (lda.l arg) #xBF 5
   (write-long-label-or-const arg))
 (define-opcode (lda/X arg) #xBD 4

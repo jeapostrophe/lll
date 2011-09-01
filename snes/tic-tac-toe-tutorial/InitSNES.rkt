@@ -56,8 +56,8 @@
   (bne (label-ref _Loop00))
   
   (label _Loop01)		;regs $210D-$2114
-  (stz/X (addr #x00))		;Set all BG scroll values to $0000
-  (stz/X (addr #x00))
+  (stz/DP/X #x00)		;Set all BG scroll values to $0000
+  (stz/DP/X #x00)
   (inx)
   (cpx.l #x2115)
   (bne (label-ref _Loop01))
@@ -75,8 +75,8 @@
   
   (ldx #x211B)
   (label _Loop02)		;regs $211B-$2120
-  (stz/X (addr #x00))		;clear out the Mode7 matrix values
-  (stz/X (addr #x00))
+  (stz/DP/X #x00)		;clear out the Mode7 matrix values
+  (stz/DP/X #x00)
   (inx)
   (cpx.l #x2121)
   (bne (label-ref _Loop02))
@@ -86,7 +86,7 @@
   
   (ldx #x2123)
   (label _Loop03)		;regs $2123-$2133
-  (stz/X (addr #x00))		;turn off windows, main screens, sub screens, color addition,
+  (stz/DP/X #x00)		;turn off windows, main screens, sub screens, color addition,
   (inx)			;fixed color = $00, no super-impose (external synchronization),
   (cpx.l #x2134)	;no interlaced mode, normal resolution
   (bne (label-ref _Loop03))
@@ -148,7 +148,7 @@
   
   (stz (addr #x2102))	;sprites initialized to be off the screen, palette 0, character 0
   (stz (addr #x2103))
-  (ldx #x0080)
+  (ldx #x80)
   (lda #xF0)
   (label _Loop08)
   (sta (addr #x2104))	;set X = 240

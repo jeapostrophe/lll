@@ -71,16 +71,14 @@
          (hex (current-address)) name (hex addr) (hex use-addr))])]
     ; The two addresses are within 128 bytes
     ['relative
-     (define diff (- use-addr addr))
+     (define diff (- addr use-addr))
      (cond 
        [(= 0 diff)
         (bytes diff)]
        [(< 0 diff (add1 128))
         (bytes diff)]
        [(< (sub1 -128) diff 0)
-        (bytes
-         (+ (abs diff)
-            #b10000000))]
+        (bytes (modulo diff 256))]
        [else
         (error 'format-addr
                "Distance too far for relative addr: addr(~a:~a) from use(~a)" 

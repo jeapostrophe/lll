@@ -50,7 +50,7 @@
 (define MIDL-BITS #b000000001111111100000000)
 (define LOWR-BITS #b000000000000000011111111)
 (define (hex v) (format "#x~a" (number->string v 16)))
-(define (format-addr name addr use-addr kind)
+(define (format-addr name addr use-addr^ kind)
   (match kind
     ['long
      (bytes (bitwise-bit-field addr 16 24)
@@ -58,6 +58,7 @@
             (bitwise-bit-field addr 0 8))]
     ; The two addresses share the first 8 bits
     ['absolute
+     (define use-addr (+ use-addr^ 2))
      (cond
        [(= (bitwise-and addr HIGH-BITS)
            (bitwise-and use-addr HIGH-BITS))
@@ -71,6 +72,7 @@
          (hex (current-address)) name (hex addr) (hex use-addr))])]
     ; The two addresses are within 128 bytes
     ['relative
+     (define use-addr (+ use-addr^ 1))
      (define diff (- addr use-addr))
      (cond 
        [(= 0 diff)
@@ -85,7 +87,7 @@
                name (hex addr) (hex use-addr))])]
     [x
      (error 'format-addr "Can't format addr(~a:~a) to ~e from use(~a)" 
-            name (hex addr) x (hex use-addr))]))
+            name (hex addr) x (hex use-addr^))]))
 
 (define (label-lookup! the-label use-addr kind)
   (match-define

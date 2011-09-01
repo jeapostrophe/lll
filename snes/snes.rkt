@@ -106,7 +106,10 @@
 (define (write-long-label-or-const arg)
   (match arg
     [(addr (? 24bit-number? ad))
-     (write-bytes (subbytes (integer->integer-bytes ad 4 #f) 1 4))]
+     (write-bytes
+      (bytes (bitwise-bit-field ad 16 24)
+             (bitwise-bit-field ad 8 16)
+             (bitwise-bit-field ad 0 8)))]
     [(? label-use? lab)
      (write-label-use lab 'long)]))
 (define (write-label-or-const arg)
@@ -119,7 +122,7 @@
      (write-label-use lab (label-use-kind lab))]))
 
 ; XXX Some of these may be long, or otherwise exotic
-(define (make-lda-like const-opcode addr-opcode #:8bit? [8bit? #f])
+(define (make-lda-like const-opcode addr-opcode long-opcode #:8bit? [8bit? #f])
   (λ (arg)
     (cond
       ; XXX This may be wrong?
@@ -136,6 +139,12 @@
       [(and (label-use? arg) (eq? 'bank (label-use-kind arg)))
        (write-byte const-opcode)
        (write-label-use arg 'bank)]
+      [(and (label-use? arg) (eq? '& (label-use-kind arg)))
+       (write-byte const-opcode)
+       (write-label-use arg 'absolute)]
+      [(and long-opcode (label-use? arg) (eq? 'long (label-use-kind arg)))
+       (write-byte long-opcode)
+       (write-label-use arg 'long)]
       [else
        (write-byte addr-opcode)
        (write-absolute-label-or-const arg)])))
@@ -146,8 +155,8 @@
                    'relative))  
   (write-bytes near-addr))
 
-(define-opcode* adc (make-lda-like #x69 #x6D))
-(define-opcode* OP:and and (make-lda-like #x29 #x2D))
+(define-opcode* adc (make-lda-like #x69 #x6D #x6F))
+(define-opcode* OP:and and (make-lda-like #x29 #x2D #x2F #:8bit? #t))
 (define-opcode (asl/A) #x0A 2)
 (define-opcode (asl arg) #x0E 6
   (write-absolute-label-or-const arg))
@@ -159,7 +168,7 @@
 (define-opcode (cld) #xD8 2)
 (define-opcode (cli) #x58 2)
 (define-opcode (clv) #xB8 2)
-(define-opcode* cmp (make-lda-like #xC9 #xCD))
+(define-opcode* cmp (make-lda-like #xC9 #xCD #xCF #:8bit? #t))
 ; XXX cycle/byte note
 ; XXX can use addresses
 (define-opcode (cpx constant) #xE0 2
@@ -170,7 +179,7 @@
   (write-absolute-label-or-const arg))
 (define-opcode (dex) #xCA 2)
 (define-opcode (dey) #x88 2)
-(define-opcode* eor (make-lda-like #x49 #x4D))
+(define-opcode* eor (make-lda-like #x49 #x4D #x4F))
 (define-opcode (ina) #x1A 2)
 (define-opcode (inc arg) #xEE 6
   (write-absolute-label-or-const arg))
@@ -183,13 +192,17 @@
   (write-long-label-or-const arg))
 (define-opcode (jsr arg) #x20 6
   (write-absolute-label-or-const arg))
-(define-opcode* lda (make-lda-like #xA9 #xAD #:8bit? #t))
-(define-opcode (lda.l arg) #xBF 5
-  (write-long-label-or-const arg))
+(define-opcode* lda (make-lda-like #xA9 #xAD #xAF #:8bit? #t))
+(define-opcode (lda.w arg) #xA9 4
+  (write-bytes (integer->integer-bytes arg 2 #f)))
+(define-opcode (lda/DP/X arg) #xB5 4
+  (write-byte arg))
 (define-opcode (lda/X arg) #xBD 4
   (write-label-or-const arg))
-(define-opcode* ldx (make-lda-like #xA2 #xAE))
-(define-opcode* ldy (make-lda-like #xA0 #xAC))
+(define-opcode (lda.l/X arg) #xBF 4
+  (write-long-label-or-const arg))
+(define-opcode* ldx (make-lda-like #xA2 #xAE #f))
+(define-opcode* ldy (make-lda-like #xA0 #xAC #f))
 (define-opcode (pha) #x48 3)
 (define-opcode (phb) #x8B 3)
 (define-opcode (phd) #x0B 4)
@@ -213,10 +226,14 @@
   (write-byte imm))
 (define-opcode (sta arg) #x8D 4
   (write-absolute-label-or-const arg))
+(define-opcode (sta/DP/X arg) #x95 4
+  (write-byte arg))
 (define-opcode (sta/X arg) #x9D 5
   (write-absolute-label-or-const arg))
 (define-opcode (stx arg) #x8E 4
   (write-absolute-label-or-const arg))
+(define-opcode (stx/DP arg) #x86 3
+  (write-byte arg))
 (define-opcode (sty arg) #x8C 4
   (write-absolute-label-or-const arg))
 (define-opcode (stz arg) #x9C 4

@@ -48,9 +48,9 @@
   (beq (label-ref +))		; if it's 0, we don't have to delete
   (ldx #x0000)
   (label -)
-  (stz/X (addr #x0000))	; delete addresses $0000 to $0008
+  (stz/DP/X #x00)	; delete addresses $0000 to $0008
   (inx)
-  (cpx #x09)	; this is 9. Guess why (homework :) )
+  (cpx.l #x09)	; this is 9. Guess why (homework :) )
   (bne (label-ref -))
   (stz (addr #x0100))	; delete the scroll
   (stz (addr #x0101))	; data also
@@ -79,7 +79,7 @@
   (ldx #x0000)	; be on the safe side
   (tax)
   (lda #x08)
-  (sta/X (addr #x0000))	; put $08 to the good address
+  (sta/DP/X #x00)	; put $08 to the good address
   (jmp (label-ref +))		; done with this
   
   (label ++)		; now for Y
@@ -93,10 +93,10 @@
   (adc (addr #x0202))	; A*3=A+A+A :)
   (adc (addr #x0100))	; add X
   ; Now A contains our address
-  (ldx (addr #x0000))	; be on the safe side
+  (ldx #x00)	; be on the safe side
   (tax)
   (lda #x0A)
-  (sta/X (addr #x0000))	; put $0A to the good address
+  (sta/DP/X #x00)	; put $0A to the good address
   (label +)		; finished putting tiles
   
   ; cursor moving comes now
@@ -152,21 +152,21 @@
   
   (ldx #x0000)
   (label -)
-  (lda/X (label-ref UntitledPalette 'long))
+  (lda.l/X (label-ref UntitledPalette 'long))
   (sta (addr #x2122))
   (inx)
-  (cpx 8)
+  (cpx.l 8)
   (bne (label-ref -))
   
   ;I'll explain this later
   ;We'll have two palettes, only one color is needed for the second:
   (lda 33)		;The color we need is the 33rd
   (sta (addr #x2121))
-  (lda.l (label-ref Palette2))
+  (lda (label-ref Palette2 'long))
   (sta (addr #x2122))
-  (lda.l (label-ref Palette2PlusOne) #;(+ (label-ref Palette2) 1))
+  (lda (label-ref Palette2PlusOne 'long) #;(+ (label-ref Palette2) 1))
   (sta (addr #x2122))
-  (ldx (label-ref UntitledData))	; Address
+  (ldx (label-ref UntitledData '&))	; Address
   (lda (label-ref UntitledData 'bank))	; of UntitledData 
   (ldy (* 15 16 2))	; length of data
   (stx (addr #x4302))	; write
@@ -258,7 +258,7 @@
   (label forever)
   (wai)
   (rep #b00100000)	; get 16 bit A
-  (lda #x0000)		; empty it
+  (lda.w #x0000)		; empty it
   (sep #b00100000)	; 8 bit A
   (lda (addr #x0100))		; get our X coord
   (ConvertX)		; WLA needs a space before a macro name
@@ -268,7 +268,7 @@
   
   ;now repeat it, but change $0100 to $0101, and $210F to $2110
   (rep #b00100000)	; get 16 bit A
-  (lda #x0000)		; empty it
+  (lda.w #x0000)		; empty it
   (sep #b00100000)	; 8 bit A
   (lda (addr #x0101))		; get our Y coord
   (ConvertY)		; WLA needs a space before a macro name
@@ -279,21 +279,21 @@
   (ldx #x0000)		; reset our counter
   (label -)
   (rep #b00100000)		; 16 bit A
-  (lda #x0000)		; empty it
+  (lda.w #x0000)		; empty it
   (sep #b00100000)		; 8 bit a
-  (lda/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
+  (lda.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
   (rep #b00100000)
   (clc)
   (adc #x4000)		; add $4000 to the value
   (sta (addr #x2116))		; write to VRAM from here
-  (lda #x0000)		; reset A while it's still 16 bit
+  (lda.w #x0000)		; reset A while it's still 16 bit
   (sep #b00100000)		; 8 bit A
-  (lda/X (addr #x0000))		; get the corresponding tile from RAM
+  (lda/DP/X #x00)		; get the corresponding tile from RAM
   ; VRAM data write mode is still %10000000
   (sta (addr #x2118))		; write
   (stz (addr #x2119))		; this is the hi-byte
   (inx)
-  (cpx 9)			; finished?
+  (cpx.l 9)			; finished?
   (bne (label-ref -))			; no, go back
   (jmp (label-ref forever)))
 

@@ -218,7 +218,7 @@
   (stx (addr #x4300))         ;Set DMA mode to fixed source, WORD to $2118/9
   (ldx #x0000)
   (stx (addr #x2116))         ;Set VRAM port address to $0000
-  (stx (addr #x0000))         ;Set $00:0000 to $0000 (assumes scratchpad ram)
+  (stx/DP #x00)         ;Set $00:0000 to $0000 (assumes scratchpad ram)
   (stx (addr #x4302))         ;Set source address to $xx:0000
   (lda #x00)
   (sta (addr #x4304))         ;Set source bank to $00

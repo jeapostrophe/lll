@@ -50,7 +50,7 @@
   
   (ldx #x2101)
   (label _Loop00)		;regs $2101-$210C
-  (stz/DP/X (addr #x00))		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
+  (stz/DP/X #x00)		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
   (inx)
   (cpx.l #x210D)
   (bne (label-ref _Loop00))

@@ -187,7 +187,7 @@
 (define-opcode (lda.l arg) #xBF 5
   (write-long-label-or-const arg))
 (define-opcode (lda/X arg) #xBD 4
-  (write-short-label-or-const arg))
+  (write-label-or-const arg))
 (define-opcode* ldx (make-lda-like #xA2 #xAE))
 (define-opcode* ldy (make-lda-like #xA0 #xAC))
 (define-opcode (pha) #x48 3)
@@ -222,7 +222,7 @@
 (define-opcode (stz arg) #x9C 4
   (write-absolute-label-or-const arg))
 (define-opcode (stz/DP/X arg) #x74 5
-  (write-absolute-label-or-const arg))
+  (write-byte arg))
 (define-opcode (stz/X arg) #x9E 5
   (write-absolute-label-or-const arg))
 (define-opcode (tax) #xAA 2)

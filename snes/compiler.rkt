@@ -5,9 +5,7 @@
          racket/path
          racket/port)
 
-(struct rom-layout (slot-start lo-rom? id name cartridge-type rom-size sram-size country-code license-code version slow-rom?
-                             native-interrupt->label
-                             rom-bank-size rom-banks empty-fill sections))
+(struct rom-layout (slot-start lo-rom? id name cartridge-type rom-size sram-size country-code license-code version slow-rom? native-interrupt->label emulation-interrupt->label rom-bank-size rom-banks empty-fill sections))
 (define (make-rom #:slot-start slot-start
                   #:rom-bank-size rom-bank-size
                   #:rom-banks rom-banks
@@ -28,7 +26,7 @@
   (rom-layout
    slot-start
    lo-rom? id name cartridge-type rom-size sram-size country license-code version slow-rom?
-   native-interrupt->label
+   native-interrupt->label emulation-interrupt->label
    rom-bank-size rom-banks empty-fill
    sections))
 
@@ -58,7 +56,6 @@
     ['bank
      (bytes bank)]
     ['long
-     ;; XXX not sure if this change was right
      (bytes (bitwise-bit-field addr 0 8)
             (bitwise-bit-field addr 8 16)
             (bitwise-bit-field addr 16 24))]
@@ -159,6 +156,7 @@
                         [empty-fill empty-fill]
                         [rom-size rom-size]
                         [sram-size sram-size]
+                        [emulation-interrupt->label emulation-interrupt->label]
                         [native-interrupt->label native-interrupt->label]
                         [country-code country-code]
                         [license-code license-code]
@@ -197,15 +195,24 @@
 
       (parameterize ([current-labels labels]
                      [current-output-port out])
-        ;; Write interrupt tables
+        ;; Write interrupt tables for native mode
         (file-position out (+ header-start #xE4))
-        (write-label-use (hash-ref native-interrupt->label 'COP) 'absolute)
-        (write-label-use (hash-ref native-interrupt->label 'BRK) 'absolute)
-        (write-label-use (hash-ref native-interrupt->label 'ABORT) 'absolute)
-        (write-label-use (hash-ref native-interrupt->label 'NMI) 'absolute)
-        (write-bytes (bytes #x00 #x000) out)
-        (write-label-use (hash-ref native-interrupt->label 'IRQ) 'absolute)
+        (write-label-use (hash-ref native-interrupt->label 'COP) '&)
+        (write-label-use (hash-ref native-interrupt->label 'BRK) '&)
+        (write-label-use (hash-ref native-interrupt->label 'ABORT) '&)
+        (write-label-use (hash-ref native-interrupt->label 'NMI) '&)
+        (write-bytes (bytes #x00 #x00) out)
+        (write-label-use (hash-ref native-interrupt->label 'IRQ) '&)
 
+        ;; Write interrupt tables for emulation mode
+        (file-position out (+ header-start #xF4))
+        (write-label-use (hash-ref emulation-interrupt->label 'COP) '&)
+        (write-bytes (bytes #x00 #x00) out)
+        (write-label-use (hash-ref emulation-interrupt->label 'ABORT) '&)
+        (write-label-use (hash-ref emulation-interrupt->label 'NMI) '&)
+        (write-label-use (hash-ref emulation-interrupt->label 'RESET) '&)
+        (write-label-use (hash-ref emulation-interrupt->label 'IRQBRK) '&)
+        
         ;; Write sections
         (call-with-output-file
             (format "~a.debug" pth) #:exists 'replace
@@ -233,11 +240,11 @@
             (match-define (label-reference use-addr kind) r)
             (define use-addr^ (+ slot-start use-addr))
             (define written-addr (format-addr label-name label-addr^ bank use-addr^ kind))
-            (eprintf "Rewrote ~a to use ~a (the ~a form of ~a which is called ~a)\n"
-                     (hex use-addr) 
+            (eprintf "Rewrote ~a/~a to use ~a (the ~a form of ~a/~a which is called ~a)\n"
+                     (hex use-addr) (hex use-addr^)
                      (bytes->hex-string written-addr)
                      kind
-                     (hex label-addr)
+                     (hex label-addr) (hex label-addr^)
                      label-name)
             (write-bytes@ out use-addr written-addr))))))
 

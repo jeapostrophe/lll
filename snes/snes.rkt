@@ -60,8 +60,14 @@
     (syntax/loc stx
       (*label-define! 'name (current-address)))]))
 
-(define (data bs)
+(define (data* stx bs)
+  (debug-opcode stx)
   (write-bytes bs))
+(define-syntax (data stx)
+  (syntax-case stx ()
+   [(_ e)
+    (quasisyntax/loc stx
+      (data* #'#,stx e))]))
 
 (define-syntax (define-opcode* stx)
   (syntax-parse

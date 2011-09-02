@@ -56,9 +56,10 @@
     ['bank
      (bytes bank)]
     ['long
-     (bytes (bitwise-bit-field addr 16 24)
+     ;; XXX not sure if this change was right
+     (bytes (bitwise-bit-field addr 0 8)
             (bitwise-bit-field addr 8 16)
-            (bitwise-bit-field addr 0 8))]
+            (bitwise-bit-field addr 16 24))]
     ; The two addresses share the first 8 bits
     ['absolute
      (define use-addr (+ use-addr^ 2))

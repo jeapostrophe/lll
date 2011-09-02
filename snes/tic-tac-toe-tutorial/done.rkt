@@ -306,8 +306,7 @@
   (make-rom
    ;==LoRom==      ; We'll get to HiRom some other time.
 
-   ;; XXX I deleted the thing that said that memory started at #x8000 because it didn't actually in the ROM, but when I look at the addresses, it looks like the rom starts immediately, but the "real" address is the slot-start plus that so I should incorporate that in somehow.
-   
+   #:slot-start #x8000
    
    #:rom-bank-size #x8000              ; Every ROM bank is 32 KBytes in size
    #:rom-banks 8                    ; 2 Mbits - Tell WLA we want to use 8 ROM Banks

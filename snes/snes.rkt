@@ -107,9 +107,9 @@
   (match arg
     [(addr (? 24bit-number? ad))
      (write-bytes
-      (bytes (bitwise-bit-field ad 16 24)
+      (bytes (bitwise-bit-field ad 0 8)
              (bitwise-bit-field ad 8 16)
-             (bitwise-bit-field ad 0 8)))]
+             (bitwise-bit-field ad 16 24)))]
     [(? label-use? lab)
      (write-label-use lab 'long)]))
 (define (write-label-or-const arg)
@@ -141,7 +141,7 @@
        (write-label-use arg 'bank)]
       [(and (label-use? arg) (eq? '& (label-use-kind arg)))
        (write-byte const-opcode)
-       (write-label-use arg 'absolute)]
+       (write-label-use arg '&)]
       [(and long-opcode (label-use? arg) (eq? 'long (label-use-kind arg)))
        (write-byte long-opcode)
        (write-label-use arg 'long)]

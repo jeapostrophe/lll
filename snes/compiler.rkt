@@ -5,10 +5,11 @@
          racket/path
          racket/port)
 
-(struct rom-layout (lo-rom? id name cartridge-type rom-size sram-size country-code license-code version slow-rom?
+(struct rom-layout (slot-start lo-rom? id name cartridge-type rom-size sram-size country-code license-code version slow-rom?
                              native-interrupt->label
                              rom-bank-size rom-banks empty-fill sections))
-(define (make-rom #:rom-bank-size rom-bank-size
+(define (make-rom #:slot-start slot-start
+                  #:rom-bank-size rom-bank-size
                   #:rom-banks rom-banks
                   #:id id ; XXX 1-4 letter string
                   #:name name ; XXX 21 bytes, exactly
@@ -25,6 +26,7 @@
                   #:empty-fill [empty-fill #x00]
                   #:sections [sections empty])
   (rom-layout
+   slot-start
    lo-rom? id name cartridge-type rom-size sram-size country license-code version slow-rom?
    native-interrupt->label
    rom-bank-size rom-banks empty-fill
@@ -47,9 +49,9 @@
         #:transparent)
 
 ; Addresses should be 24 bits
-(define HIGH-BITS #b111111110000000000000000)
-(define MIDL-BITS #b000000001111111100000000)
-(define LOWR-BITS #b000000000000000011111111)
+(define HIGH-BITS #xff0000)
+(define MIDL-BITS #x00ff00)
+(define LOWR-BITS #x0000ff)
 (define (hex v) (format "#x~a" (number->string v 16)))
 (define (format-addr name addr bank use-addr^ kind)
   (match kind
@@ -60,6 +62,10 @@
      (bytes (bitwise-bit-field addr 0 8)
             (bitwise-bit-field addr 8 16)
             (bitwise-bit-field addr 16 24))]
+    ['&
+     (integer->integer-bytes 
+      (bitwise-and (bitwise-not HIGH-BITS) addr)
+      2 #f)]
     ; The two addresses share the first 8 bits
     ['absolute
      (define use-addr (+ use-addr^ 2))
@@ -72,8 +78,10 @@
        [else
         (error 
          'format-addr
-         "~a: Absolute addr references do not share upper 8-bits: addr(~a:~a) and use(~a)"
-         (hex (current-address)) name (hex addr) (hex use-addr))])]
+         "Absolute addr references do not share upper 8-bits: addr(~a:~a)[~a] and use(~a)[~a]"
+         name
+         (hex addr) (hex (bitwise-and addr HIGH-BITS))
+         (hex use-addr) (hex (bitwise-and use-addr HIGH-BITS)))])]
     ; The two addresses are within 128 bytes
     ['relative
      (define use-addr (+ use-addr^ 1))
@@ -98,14 +106,10 @@
    (and l (label actual bank refs))
    (hash-ref! (current-labels) the-label
               (λ () (label #f #f empty))))
-  (cond
-    [actual
-     (format-addr the-label actual bank use-addr kind)]
-    [else
-     (set-label-references! l
-                            (list* (label-reference use-addr kind)
-                                   refs))
-     (format-addr the-label 0 0 0 kind)]))
+  (set-label-references! l
+                         (list* (label-reference use-addr kind)
+                                refs))
+  (format-addr the-label 0 0 0 kind))
 (define (label-define! the-label actual-addr)
   (match
    (hash-ref! (current-labels) the-label
@@ -145,7 +149,8 @@
 
 (define (compile-rom pth rl)
   (match-define
-   (struct* rom-layout ([lo-rom? lo-rom?]
+   (struct* rom-layout ([slot-start slot-start]
+                        [lo-rom? lo-rom?]
                         [slow-rom? slow-rom?]
                         [id id]
                         [name name]
@@ -223,9 +228,11 @@
             (error 'compile 
                    "Label ~e was never defined"
                    label-name))
+          (define label-addr^ (+ slot-start label-addr))
           (for ([r (in-list refs)])
             (match-define (label-reference use-addr kind) r)
-            (define written-addr (format-addr label-name label-addr bank use-addr kind))
+            (define use-addr^ (+ slot-start use-addr))
+            (define written-addr (format-addr label-name label-addr^ bank use-addr^ kind))
             (eprintf "Rewrote ~a to use ~a (the ~a form of ~a which is called ~a)\n"
                      (hex use-addr) 
                      (bytes->hex-string written-addr)

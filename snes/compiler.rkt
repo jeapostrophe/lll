@@ -43,7 +43,7 @@
 (struct label (actual-address bank references)
         #:transparent
         #:mutable)
-(struct label-reference (use-address kind)
+(struct label-reference (use-address use-bank kind)
         #:transparent)
 
 ; Addresses should be 24 bits
@@ -104,7 +104,7 @@
    (hash-ref! (current-labels) the-label
               (λ () (label #f #f empty))))
   (set-label-references! l
-                         (list* (label-reference use-addr kind)
+                         (list* (label-reference use-addr (current-bank) kind)
                                 refs))
   (format-addr the-label 0 0 0 kind))
 (define (label-define! the-label actual-addr)
@@ -194,6 +194,7 @@
       (write-bytes@ out (+ header-start #xDB) (bytes version))
 
       (parameterize ([current-labels labels]
+                     [current-bank 0]
                      [current-output-port out])
         ;; Write interrupt tables for native mode
         (file-position out (+ header-start #xE4))
@@ -230,16 +231,16 @@
 
         ;; Rewrite labels
         (for ([(label-name l) (in-hash labels)])
-          (match-define (label label-addr bank refs) l)
+          (match-define (label label-addr label-bank refs) l)
           (unless label-addr
             (error 'compile 
                    "Label ~e was never defined"
                    label-name))
-          (define label-addr^ (+ slot-start label-addr))
+          (define label-addr^ (+ (* (add1 label-bank) slot-start) label-addr))
           (for ([r (in-list refs)])
-            (match-define (label-reference use-addr kind) r)
-            (define use-addr^ (+ slot-start use-addr))
-            (define written-addr (format-addr label-name label-addr^ bank use-addr^ kind))
+            (match-define (label-reference use-addr use-bank kind) r)
+            (define use-addr^ (+ (* (add1 use-bank) slot-start) use-addr))
+            (define written-addr (format-addr label-name label-addr^ label-bank use-addr^ kind))
             (eprintf "Rewrote ~a/~a to use ~a (the ~a form of ~a/~a which is called ~a)\n"
                      (hex use-addr) (hex use-addr^)
                      (bytes->hex-string written-addr)

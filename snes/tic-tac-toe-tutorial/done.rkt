@@ -64,7 +64,7 @@
   (cmp #b11000000)	; both are pressed?
   (beq (label-ref +))		; then don't do anything
   (cmp #b10000000)	; B?
-  (bne (label-ref +))		; no, try Y
+  (bne (label-ref ++))		; now, try Y
   ; B is pressed, write an O ($08)
   ; we have to tell the cursor position,
   ; and calculate an address from that

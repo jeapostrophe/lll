@@ -1,144 +1,145 @@
-#lang s-exp "../snes.rkt"
-(require "InitSNES.rkt"
+#lang racket/base
+(require "../snes.rkt"
+         "InitSNES.rkt"
          "tiles.rkt")
 (provide ROM)
 
 (define-section EmptyVectors
   #:bank 0 #:semi-free
   (label EmptyHandler)
-  (rti))
+  (RTI))
 
 (define (ConvertX)
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
-  (repeat 5
-          (asl/A))		; multiply A by 32
-  (rep #b00100000)	; 16 bit A
-  (eor #xFFFF)	; this will do A=1-A
-  (ina)		; A=A+1
-  (sep #b00100000))	; 8 bit A
+  (for ([i (in-range 5)])
+       (ASL/A))		; multiply A by 32
+  (REP #b00100000)	; 16 bit A
+  (EOR #xFFFF)	; this will do A=1-A
+  (INA)		; A=A+1
+  (SEP #b00100000))	; 8 bit A
 
 (define (ConvertY)
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
-  (repeat 5
-          (asl/A))		; multiply A by 32
-  (rep #b00100000)	; 16 bit A
-  (eor #xFFFF)	; this will do A=1-A
-  (sep #b00100000))	; 8 bit A
+  (for ([i (in-range 5)])
+       (ASL/A))		; multiply A by 32
+  (REP #b00100000)	; 16 bit A
+  (EOR #xFFFF)	; this will do A=1-A
+  (SEP #b00100000))	; 8 bit A
 
 (define-section Vblank
   #:bank 0
   
   ;--------------------------------------
   (label VBlank)
-  (lda (addr #x4212))	; get joypad status
-  (and #b00000001)	; if joy is not ready
-  (bne (label-ref VBlank))	; wait
-  (lda (addr #x4219))	; read joypad (BYSTudlr)
-  (sta (addr #x0201))	; store it
-  (cmp (addr #x0200))	; compare it with the previous
-  (bne (label-ref +))		; if not equal, go
-  (rti)		; if it's equal, then return
+  (LDA (addr #x4212))	; get joypad status
+  (AND #b00000001)	; if joy is not ready
+  (BNE (label-ref VBlank))	; wait
+  (LDA (addr #x4219))	; read joypad (BYSTudlr)
+  (STA (addr #x0201))	; store it
+  (CMP (addr #x0200))	; compare it with the previous
+  (BNE (label-ref +))		; if not equal, go
+  (RTI)		; if it's equal, then return
   
   (label +)
-  (sta (addr #x0200))	; store
-  (and #b00010000)	; get the start button
+  (STA (addr #x0200))	; store
+  (AND #b00010000)	; get the start button
   ; this will be the delete key
-  (beq (label-ref +))		; if it's 0, we don't have to delete
-  (ldx #x0000)
+  (BEQ (label-ref +))		; if it's 0, we don't have to delete
+  (LDX #x0000)
   (label -)
-  (stz/DP/X #x00)	; delete addresses $0000 to $0008
-  (inx)
-  (cpx.l #x09)	; this is 9. Guess why (homework :) )
-  (bne (label-ref -))
-  (stz (addr #x0100))	; delete the scroll
-  (stz (addr #x0101))	; data also
+  (STZ/DP/X #x00)	; delete addresses $0000 to $0008
+  (INX)
+  (CPX.l #x09)	; this is 9. Guess why (homework :) )
+  (BNE (label-ref -))
+  (STZ (addr #x0100))	; delete the scroll
+  (STZ (addr #x0101))	; data also
   
   (label +)
-  (lda (addr #x0201))	; get back the temp value
-  (and #b11000000)	; Care only about B and Y
-  (beq (label-ref +))		; if empty, skip this
+  (LDA (addr #x0201))	; get back the temp value
+  (AND #b11000000)	; Care only about B AND Y
+  (BEQ (label-ref +))		; if empty, skip this
   ; so, B or Y is pressed. Let's say B is O,
-  ; and Y is X.
-  (cmp #b11000000)	; both are pressed?
-  (beq (label-ref +))		; then don't do anything
-  (cmp #b10000000)	; B?
-  (bne (label-ref ++))		; now, try Y
+  ; AND Y is X.
+  (CMP #b11000000)	; both are pressed?
+  (BEQ (label-ref +))		; then don't do anything
+  (CMP #b10000000)	; B?
+  (BNE (label-ref ++))		; now, try Y
   ; B is pressed, write an O ($08)
   ; we have to tell the cursor position,
-  ; and calculate an address from that
+  ; AND calculate an address from that
   ; Formula: Address=3*Y+X
-  (lda (addr #x0101))	; get Y
-  (sta (addr #x0202))	; put it to a temp value
-  (clc)
-  (adc (addr #x0202))	; multiply by 3 - an easy way
-  (adc (addr #x0202))	; A*3=A+A+A :)
-  (adc (addr #x0100))	; add X
+  (LDA (addr #x0101))	; get Y
+  (STA (addr #x0202))	; put it to a temp value
+  (CLC)
+  (ADC (addr #x0202))	; multiply by 3 - an easy way
+  (ADC (addr #x0202))	; A*3=A+A+A :)
+  (ADC (addr #x0100))	; add X
   ; Now A contains our address
-  (ldx #x0000)	; be on the safe side
-  (tax)
-  (lda #x08)
-  (sta/DP/X #x00)	; put $08 to the good address
-  (jmp (label-ref +))		; done with this
+  (LDX #x0000)	; be on the safe side
+  (TAX)
+  (LDA #x08)
+  (STA/DP/X #x00)	; put $08 to the good address
+  (JMP (label-ref +))		; done with this
   
   (label ++)		; now for Y
-  (cmp #b01000000)	; Y?
-  (bne (label-ref +))		; no, jump forward (this should not happen)
+  (CMP #b01000000)	; Y?
+  (BNE (label-ref +))		; no, jump forward (this should not happen)
   ; Y is pressed, write an X ($0A)
-  (lda (addr #x0101))	; get Y
-  (sta (addr #x0202))	; put it to a temp value
-  (clc)
-  (adc (addr #x0202))	; multiply by 3 - an easy way
-  (adc (addr #x0202))	; A*3=A+A+A :)
-  (adc (addr #x0100))	; add X
+  (LDA (addr #x0101))	; get Y
+  (STA (addr #x0202))	; put it to a temp value
+  (CLC)
+  (ADC (addr #x0202))	; multiply by 3 - an easy way
+  (ADC (addr #x0202))	; A*3=A+A+A :)
+  (ADC (addr #x0100))	; add X
   ; Now A contains our address
-  (ldx #x00)	; be on the safe side
-  (tax)
-  (lda #x0A)
-  (sta/DP/X #x00)	; put $0A to the good address
+  (LDX #x00)	; be on the safe side
+  (TAX)
+  (LDA #x0A)
+  (STA/DP/X #x00)	; put $0A to the good address
   (label +)		; finished putting tiles
   
   ; cursor moving comes now
-  (lda (addr #x0201))	; get control
-  (and #b00001111)	; care about directions
-  (sta (addr #x0201))	; store this
+  (LDA (addr #x0201))	; get control
+  (AND #b00001111)	; care about directions
+  (STA (addr #x0201))	; store this
   
-  (cmp #b00001000)	; up?
-  (bne (label-ref +))		; if not, skip
-  (lda (addr #x0101))	; get scroll Y
-  (cmp #x00)	; if on the top,
-  (beq (label-ref +))		; don't do anything
-  (dec (addr #x0101))	; sub 1 from Y
+  (CMP #b00001000)	; up?
+  (BNE (label-ref +))		; if not, skip
+  (LDA (addr #x0101))	; get scroll Y
+  (CMP #x00)	; if on the top,
+  (BEQ (label-ref +))		; don't do anything
+  (DEC (addr #x0101))	; sub 1 from Y
   (label +)
   
-  (lda (addr #x0201))	; get control
-  (cmp #b00000100)	; down?
-  (bne (label-ref +))		; if not, skip
-  (lda (addr #x0101))
-  (cmp #x02)	; if on the bottom,
-  (beq (label-ref +))		; don't do anything
-  (inc (addr #x0101))	; add 1 to Y
+  (LDA (addr #x0201))	; get control
+  (CMP #b00000100)	; down?
+  (BNE (label-ref +))		; if not, skip
+  (LDA (addr #x0101))
+  (CMP #x02)	; if on the bottom,
+  (BEQ (label-ref +))		; don't do anything
+  (INC (addr #x0101))	; add 1 to Y
   (label +)
   
-  (lda (addr #x0201))	; get control
-  (cmp #b00000010)	; left?
-  (bne (label-ref +))		; if not, skip
-  (lda (addr #x0100))
-  (cmp #x00)	; if on the left,
-  (beq (label-ref +))		; don't do anything
-  (dec (addr #x0100))	; sub 1 from X
+  (LDA (addr #x0201))	; get control
+  (CMP #b00000010)	; left?
+  (BNE (label-ref +))		; if not, skip
+  (LDA (addr #x0100))
+  (CMP #x00)	; if on the left,
+  (BEQ (label-ref +))		; don't do anything
+  (DEC (addr #x0100))	; sub 1 from X
   (label +)
   
-  (lda (addr #x0201))	; get control
-  (cmp #b00000001)	; right?
-  (bne (label-ref +))		; if not, skip
-  (lda (addr #x0100))
-  (cmp #x02)	; if on the right,
-  (beq (label-ref +))		; don't do anything
-  (inc (addr #x0100))	; add 1 to X
+  (LDA (addr #x0201))	; get control
+  (CMP #b00000001)	; right?
+  (BNE (label-ref +))		; if not, skip
+  (LDA (addr #x0100))
+  (CMP #x02)	; if on the right,
+  (BEQ (label-ref +))		; don't do anything
+  (INC (addr #x0100))	; add 1 to X
   (label +)
-  (rti))		; F|NisH3D!
+  (RTI))		; F|NisH3D!
 ;--------------------------------------
 
 (define-section Main
@@ -147,155 +148,155 @@
   
   (label Start)
   (InitSNES)
-  (rep #b00010000)	;16 bit xy
-  (sep #b00100000)	;8 bit ab
+  (REP #b00010000)	;16 bit xy
+  (SEP #b00100000)	;8 bit ab
   
-  (ldx #x0000)
+  (LDX #x0000)
   (label -)
-  (lda.l/X (label-ref UntitledPalette 'long))
-  (sta (addr #x2122))
-  (inx)
-  (cpx.l 8)
-  (bne (label-ref -))
+  (LDA.l/X (label-ref UntitledPalette 'long))
+  (STA (addr #x2122))
+  (INX)
+  (CPX.l 8)
+  (BNE (label-ref -))
   
   ;I'll explain this later
   ;We'll have two palettes, only one color is needed for the second:
-  (lda 33)		;The color we need is the 33rd
-  (sta (addr #x2121))
-  (lda (label-ref Palette2 'long))
-  (sta (addr #x2122))
-  (lda (label-ref Palette2PlusOne 'long) #;(+ (label-ref Palette2) 1))
-  (sta (addr #x2122))
-  (ldx (label-ref UntitledData '&))	; Address
-  (lda (label-ref UntitledData 'bank))	; of UntitledData 
-  (ldy (* 15 16 2))	; length of data
-  (stx (addr #x4302))	; write
-  (sta (addr #x4304))	; address
-  (sty (addr #x4305))	; and length
-  (lda #b00000001)	; set this mode (transferring words)
-  (sta (addr #x4300))
-  (lda #x18)	; $211[89]: VRAM data write
-  (sta (addr #x4301))	; set destination
+  (LDA 33)		;The color we need is the 33rd
+  (STA (addr #x2121))
+  (LDA (label-ref Palette2 'long))
+  (STA (addr #x2122))
+  (LDA (label-ref Palette2PlusOne 'long) #;(+ (label-ref Palette2) 1))
+  (STA (addr #x2122))
+  (LDX (label-ref UntitledData '&))	; Address
+  (LDA (label-ref UntitledData 'bank))	; of UntitledData 
+  (LDY (* 15 16 2))	; length of data
+  (STX (addr #x4302))	; write
+  (STA (addr #x4304))	; address
+  (STY (addr #x4305))	; AND length
+  (LDA #b00000001)	; set this mode (transferring words)
+  (STA (addr #x4300))
+  (LDA #x18)	; $211[89]: VRAM data write
+  (STA (addr #x4301))	; set destination
   
-  (ldy #x0000)	; Write to VRAM from $0000
-  (sty (addr #x2116))
+  (LDY #x0000)	; Write to VRAM from $0000
+  (STY (addr #x2116))
   
-  (lda #b00000001)	; start DMA, channel 0
-  (sta (addr #x420B))
-  (lda #b10000000)	; VRAM writing mode
-  (sta (addr #x2115))
-  (ldx #x4000)	; write to vram
-  (stx (addr #x2116))	; from $4000
+  (LDA #b00000001)	; start DMA, channel 0
+  (STA (addr #x420B))
+  (LDA #b10000000)	; VRAM writing mode
+  (STA (addr #x2115))
+  (LDX #x4000)	; write to vram
+  (STX (addr #x2116))	; from $4000
   
   ;ugly code starts here - it writes the # shape I mentioned before.
-  (repeat 2
+  (for ([i (in-range 2)])
           ;X|X|X
-          (repeat 2
-                  (ldx #x0000)	; tile 0 ( )
-                  (stx (addr #x2118))
-                  (ldx #x0002)	; tile 2 (|)
-                  (stx (addr #x2118)))
-          (ldx #x0000)
-          (stx (addr #x2118))
+          (for ([i (in-range 2)])
+                  (LDX #x0000)	; tile 0 ( )
+                  (STX (addr #x2118))
+                  (LDX #x0002)	; tile 2 (|)
+                  (STX (addr #x2118)))
+          (LDX #x0000)
+          (STX (addr #x2118))
           ;first line finished, add BG's
-          (repeat 27
-                  (stx (addr #x2118)))	; X=0
+          (for ([i (in-range 27)])
+                  (STX (addr #x2118)))	; X=0
           ;beginning of 2nd line
           ;-+-+-
-          (repeat 2
-                  (ldx #x0004)	; tile 4 (-)
-                  (stx (addr #x2118))
-                  (ldx #x0006)	; tile 6 (+)
-                  (stx (addr #x2118)))
-          (ldx #x0004)	; tile 4 (-)
-          (stx (addr #x2118))
-          (ldx #x0000)
-          (repeat 27
-                  (stx (addr #x2118))))
-  (repeat 2
-          (ldx #x0000)	; tile 0 ( )
-          (stx (addr #x2118))
-          (ldx #x0002)	; tile 2 (|)
-          (stx (addr #x2118)))
-  (ldx #x6000)	; BG2 will start here
-  (stx (addr #x2116))
-  (ldx #x000C)	; And will contain 1 tile
-  (stx (addr #x2118))
+          (for ([i (in-range 2)])
+                  (LDX #x0004)	; tile 4 (-)
+                  (STX (addr #x2118))
+                  (LDX #x0006)	; tile 6 (+)
+                  (STX (addr #x2118)))
+          (LDX #x0004)	; tile 4 (-)
+          (STX (addr #x2118))
+          (LDX #x0000)
+          (for ([i (in-range 27)])
+                  (STX (addr #x2118))))
+  (for ([i (in-range 2)])
+          (LDX #x0000)	; tile 0 ( )
+          (STX (addr #x2118))
+          (LDX #x0002)	; tile 2 (|)
+          (STX (addr #x2118)))
+  (LDX #x6000)	; BG2 will start here
+  (STX (addr #x2116))
+  (LDX #x000C)	; AND will contain 1 tile
+  (STX (addr #x2118))
   ;set up the screen
-  (lda #b00110000)	; 16x16 tiles, mode 0
-  (sta (addr #x2105))	; screen mode register
-  (lda #b01000000)	; data starts from $4000
-  (sta (addr #x2107))	; for BG1
-  (lda #b01100000)	; and $6000
-  (sta (addr #x2108))	; for BG2
+  (LDA #b00110000)	; 16x16 tiles, mode 0
+  (STA (addr #x2105))	; screen mode register
+  (LDA #b01000000)	; data starts from $4000
+  (STA (addr #x2107))	; for BG1
+  (LDA #b01100000)	; AND $6000
+  (STA (addr #x2108))	; for BG2
   
-  (stz (addr #x210B))	; BG1 and BG2 use the $0000 tiles
+  (STZ (addr #x210B))	; BG1 AND BG2 use the $0000 tiles
   
-  (lda #b00000011)	; enable bg1&2
-  (sta (addr #x212C))
+  (LDA #b00000011)	; enable bg1&2
+  (STA (addr #x212C))
   
   ;The PPU doesn't process the top line, so we scroll down 1 line.
-  (rep #x20)	; 16bit a
-  (lda #x07FF)	; this is -1 for BG1
-  (sep #x20)	; 8bit a
-  (sta (addr #x210E))	; BG1 vert scroll
-  (xba)
-  (sta (addr #x210E))
+  (REP #x20)	; 16bit a
+  (LDA #x07FF)	; this is -1 for BG1
+  (SEP #x20)	; 8bit a
+  (STA (addr #x210E))	; BG1 vert scroll
+  (XBA)
+  (STA (addr #x210E))
   
-  (rep #x20)	; 16bit a
-  (lda #xFFFF)	; this is -1 for BG2
-  (sep #x20)	; 8bit a
-  (sta (addr #x2110))	; BG2 vert scroll
-  (xba)
-  (sta (addr #x2110))
+  (REP #x20)	; 16bit a
+  (LDA #xFFFF)	; this is -1 for BG2
+  (SEP #x20)	; 8bit a
+  (STA (addr #x2110))	; BG2 vert scroll
+  (XBA)
+  (STA (addr #x2110))
   
-  (lda #b00001111)	; enable screen, set brightness to 15
-  (sta (addr #x2100))
+  (LDA #b00001111)	; enable screen, set brightness to 15
+  (STA (addr #x2100))
   
-  (lda #b10000001)	; enable NMI and joypads
-  (sta (addr #x4200))
+  (LDA #b10000001)	; enable NMI AND joypads
+  (STA (addr #x4200))
   
   (label forever)
-  (wai)
-  (rep #b00100000)	; get 16 bit A
-  (lda.w #x0000)		; empty it
-  (sep #b00100000)	; 8 bit A
-  (lda (addr #x0100))		; get our X coord
+  (WAI)
+  (REP #b00100000)	; get 16 bit A
+  (LDA.w #x0000)		; empty it
+  (SEP #b00100000)	; 8 bit A
+  (LDA (addr #x0100))		; get our X coord
   (ConvertX)		; WLA needs a space before a macro name
-  (sta (addr #x210F))		; BG2 horz scroll
-  (xba)
-  (sta (addr #x210F))		; write 16 bits
+  (STA (addr #x210F))		; BG2 horz scroll
+  (XBA)
+  (STA (addr #x210F))		; write 16 bits
   
-  ;now repeat it, but change $0100 to $0101, and $210F to $2110
-  (rep #b00100000)	; get 16 bit A
-  (lda.w #x0000)		; empty it
-  (sep #b00100000)	; 8 bit A
-  (lda (addr #x0101))		; get our Y coord
+  ;now repeat it, but change $0100 to $0101, AND $210F to $2110
+  (REP #b00100000)	; get 16 bit A
+  (LDA.w #x0000)		; empty it
+  (SEP #b00100000)	; 8 bit A
+  (LDA (addr #x0101))		; get our Y coord
   (ConvertY)		; WLA needs a space before a macro name
-  (sta (addr #x2110))		; BG2 vert scroll
-  (xba)
-  (sta (addr #x2110))		; write 16 bits
+  (STA (addr #x2110))		; BG2 vert scroll
+  (XBA)
+  (STA (addr #x2110))		; write 16 bits
   ;--------------------------------------
-  (ldx #x0000)		; reset our counter
+  (LDX #x0000)		; reset our counter
   (label -)
-  (rep #b00100000)		; 16 bit A
-  (lda.w #x0000)		; empty it
-  (sep #b00100000)		; 8 bit a
-  (lda.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
-  (rep #b00100000)
-  (clc)
-  (adc #x4000)		; add $4000 to the value
-  (sta (addr #x2116))		; write to VRAM from here
-  (lda.w #x0000)		; reset A while it's still 16 bit
-  (sep #b00100000)		; 8 bit A
-  (lda/DP/X #x00)		; get the corresponding tile from RAM
+  (REP #b00100000)		; 16 bit A
+  (LDA.w #x0000)		; empty it
+  (SEP #b00100000)		; 8 bit a
+  (LDA.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
+  (REP #b00100000)
+  (CLC)
+  (ADC #x4000)		; add $4000 to the value
+  (STA (addr #x2116))		; write to VRAM from here
+  (LDA.w #x0000)		; reset A while it's still 16 bit
+  (SEP #b00100000)		; 8 bit A
+  (LDA/DP/X #x00)		; get the corresponding tile from RAM
   ; VRAM data write mode is still %10000000
-  (sta (addr #x2118))		; write
-  (stz (addr #x2119))		; this is the hi-byte
-  (inx)
-  (cpx.l 9)			; finished?
-  (bne (label-ref -))			; no, go back
-  (jmp (label-ref forever)))
+  (STA (addr #x2118))		; write
+  (STZ (addr #x2119))		; this is the hi-byte
+  (INX)
+  (CPX.l 9)			; finished?
+  (BNE (label-ref -))			; no, go back
+  (JMP (label-ref forever)))
 
 (define-section Conversiontable
   #:bank 2 

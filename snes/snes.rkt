@@ -161,103 +161,100 @@
                    'relative))  
   (write-bytes near-addr))
 
-(define-opcode* adc (make-lda-like #x69 #x6D #x6F))
-(define-opcode* OP:and and (make-lda-like #x29 #x2D #x2F #:8bit? #t))
-(define-opcode (asl/A) #x0A 2)
-(define-opcode (asl arg) #x0E 6
+(define-opcode* ADC (make-lda-like #x69 #x6D #x6F))
+(define-opcode* AND (make-lda-like #x29 #x2D #x2F #:8bit? #t))
+(define-opcode (ASL/A) #x0A 2)
+(define-opcode (ASL arg) #x0E 6
   (write-absolute-label-or-const arg))
-(define-opcode (beq near-label) #xF0 2
+(define-opcode (BEQ near-label) #xF0 2
   (write-near-label near-label))
-(define-opcode (bne near-label) #xD0 2
+(define-opcode (BNE near-label) #xD0 2
   (write-near-label near-label))
-(define-opcode (clc) #x18 2)
-(define-opcode (cld) #xD8 2)
-(define-opcode (cli) #x58 2)
-(define-opcode (clv) #xB8 2)
-(define-opcode* cmp (make-lda-like #xC9 #xCD #xCF #:8bit? #t))
+(define-opcode (CLC) #x18 2)
+(define-opcode (CLD) #xD8 2)
+(define-opcode (CLI) #x58 2)
+(define-opcode (CLV) #xB8 2)
+(define-opcode* CMP (make-lda-like #xC9 #xCD #xCF #:8bit? #t))
 ; XXX cycle/byte note
 ; XXX can use addresses
-(define-opcode (cpx constant) #xE0 2
+(define-opcode (CPX constant) #xE0 2
   (write-byte constant))
-(define-opcode (cpx.l constant) #xE0 2
+(define-opcode (CPX.l constant) #xE0 2
   (write-bytes (integer->integer-bytes constant 2 #f)))
-(define-opcode (dec arg) #xCE 6
+(define-opcode (DEC arg) #xCE 6
   (write-absolute-label-or-const arg))
-(define-opcode (dex) #xCA 2)
-(define-opcode (dey) #x88 2)
-(define-opcode* eor (make-lda-like #x49 #x4D #x4F))
-(define-opcode (ina) #x1A 2)
-(define-opcode (inc arg) #xEE 6
+(define-opcode (DEX) #xCA 2)
+(define-opcode (DEY) #x88 2)
+(define-opcode* EOR (make-lda-like #x49 #x4D #x4F))
+(define-opcode (INA) #x1A 2)
+(define-opcode (INC arg) #xEE 6
   (write-absolute-label-or-const arg))
-(define-opcode (inx) #xE8 2)
-(define-opcode (iny) #xC8 2)
+(define-opcode (INX) #xE8 2)
+(define-opcode (INY) #xC8 2)
 ; XXX Some uses of this in the code may actually be JML
-(define-opcode (jmp label) #x4C 3
+(define-opcode (JMP label) #x4C 3
   (write-label-use label 'absolute))
-(define-opcode (jsl arg) #x22 8
+(define-opcode (JSL arg) #x22 8
   (write-long-label-or-const arg))
-(define-opcode (jsr arg) #x20 6
+(define-opcode (JSR arg) #x20 6
   (write-absolute-label-or-const arg))
-(define-opcode* lda (make-lda-like #xA9 #xAD #xAF #:8bit? #t))
-(define-opcode (lda.w arg) #xA9 4
+(define-opcode* LDA (make-lda-like #xA9 #xAD #xAF #:8bit? #t))
+(define-opcode (LDA.w arg) #xA9 4
   (write-bytes (integer->integer-bytes arg 2 #f)))
-(define-opcode (lda/DP/X arg) #xB5 4
+(define-opcode (LDA/DP/X arg) #xB5 4
   (write-byte arg))
-(define-opcode (lda/X arg) #xBD 4
+(define-opcode (LDA/X arg) #xBD 4
   (write-label-or-const arg))
-(define-opcode (lda.l/X arg) #xBF 4
+(define-opcode (LDA.l/X arg) #xBF 4
   (write-long-label-or-const arg))
-(define-opcode* ldx (make-lda-like #xA2 #xAE #f))
-(define-opcode* ldy (make-lda-like #xA0 #xAC #f))
-(define-opcode (pha) #x48 3)
-(define-opcode (phb) #x8B 3)
-(define-opcode (phd) #x0B 4)
-(define-opcode (phk) #x4B 3)
-(define-opcode (php) #x08 3)
-(define-opcode (phx) #xDA 3)
-(define-opcode (phy) #x4A 3)
-(define-opcode (pla) #x68 4)
-(define-opcode (plb) #xAB 4)
-(define-opcode (pld) #x2B 5)
-(define-opcode (plp) #x28 4)
-(define-opcode (plx) #xFA 4)
-(define-opcode (ply) #x7A 4)
-(define-opcode (rep const) #xC2 3
+(define-opcode* LDX (make-lda-like #xA2 #xAE #f))
+(define-opcode* LDY (make-lda-like #xA0 #xAC #f))
+(define-opcode (PHA) #x48 3)
+(define-opcode (PHB) #x8B 3)
+(define-opcode (PHD) #x0B 4)
+(define-opcode (PHK) #x4B 3)
+(define-opcode (PHP) #x08 3)
+(define-opcode (PHX) #xDA 3)
+(define-opcode (PHY) #x4A 3)
+(define-opcode (PLA) #x68 4)
+(define-opcode (PLB) #xAB 4)
+(define-opcode (PLD) #x2B 5)
+(define-opcode (PLP) #x28 4)
+(define-opcode (PLX) #xFA 4)
+(define-opcode (PLY) #x7A 4)
+(define-opcode (REP const) #xC2 3
   (write-byte const))
-(define-opcode (rti) #x40 6)
-(define-opcode (rtl) #x6B 6)
-(define-opcode (rts) #x60 6)
-(define-opcode (sei) #x78 2)
-(define-opcode (sep imm) #xE2 3
+(define-opcode (RTI) #x40 6)
+(define-opcode (RTL) #x6B 6)
+(define-opcode (RTS) #x60 6)
+(define-opcode (SEI) #x78 2)
+(define-opcode (SEP imm) #xE2 3
   (write-byte imm))
-(define-opcode (sta arg) #x8D 4
+(define-opcode (STA arg) #x8D 4
   (write-absolute-label-or-const arg))
-(define-opcode (sta/DP/X arg) #x95 4
+(define-opcode (STA/DP/X arg) #x95 4
   (write-byte arg))
-(define-opcode (sta/X arg) #x9D 5
+(define-opcode (STA/X arg) #x9D 5
   (write-absolute-label-or-const arg))
-(define-opcode (stx arg) #x8E 4
+(define-opcode (STX arg) #x8E 4
   (write-absolute-label-or-const arg))
-(define-opcode (stx/DP arg) #x86 3
+(define-opcode (STX/DP arg) #x86 3
   (write-byte arg))
-(define-opcode (sty arg) #x8C 4
+(define-opcode (STY arg) #x8C 4
   (write-absolute-label-or-const arg))
-(define-opcode (stz arg) #x9C 4
+(define-opcode (STZ arg) #x9C 4
   (write-absolute-label-or-const arg))
-(define-opcode (stz/DP/X arg) #x74 5
+(define-opcode (STZ/DP/X arg) #x74 5
   (write-byte arg))
-(define-opcode (stz/X arg) #x9E 5
+(define-opcode (STZ/X arg) #x9E 5
   (write-absolute-label-or-const arg))
-(define-opcode (tax) #xAA 2)
-(define-opcode (tcd) #x5B 2)
-(define-opcode (txs) #x9A 2)
+(define-opcode (TAX) #xAA 2)
+(define-opcode (TCD) #x5B 2)
+(define-opcode (TXS) #x9A 2)
 ; XXX cycle notess
-(define-opcode (wai) #xCB 3)
-(define-opcode (xba) #xEB 3)
-(define-opcode (xce) #xFB 2)
-
-(define-syntax-rule (repeat n . e)
-  (for ([i (in-range n)]) . e))
+(define-opcode (WAI) #xCB 3)
+(define-opcode (XBA) #xEB 3)
+(define-opcode (XCE) #xFB 2)
 
 (define current-back-references (make-parameter #f))
 (define current-forward-references (make-parameter #f))
@@ -291,10 +288,5 @@
 
 
 (provide 
- ; From racket/base
- #%module-begin require provide define #%datum #%app
- all-defined-out quote bytes * +
- quasiquote unquote empty list hasheq
- ; From this
- define-section repeat label-ref addr data make-rom
+ define-section label-ref addr data make-rom
  (rename-out [snes-label label]))

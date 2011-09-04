@@ -1,4 +1,5 @@
-#lang s-exp "../snes.rkt"
+#lang racket/base
+(require "../snes.rkt")
 (provide (all-defined-out))
 ; Created with eKid's pcx2snes converter ;
 

@@ -307,6 +307,7 @@
                body ...
                (snes-label lab))))]))
 
+;; XXX Remove label binding, instead give a (RETURN) function
 (define-syntax (LET/RETURN stx)
   (syntax-parse
    stx

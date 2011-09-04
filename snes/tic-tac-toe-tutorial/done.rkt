@@ -272,24 +272,24 @@
   (STA (addr #x2110))		; write 16 bits
   ;--------------------------------------
   (LDX #x0000)		; reset our counter
-  (label -)
-  (REP #b00100000)		; 16 bit A
-  (LDA.w #x0000)		; empty it
-  (SEP #b00100000)		; 8 bit a
-  (LDA.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
-  (REP #b00100000)
-  (CLC)
-  (ADC #x4000)		; add $4000 to the value
-  (STA (addr #x2116))		; write to VRAM from here
-  (LDA.w #x0000)		; reset A while it's still 16 bit
-  (SEP #b00100000)		; 8 bit A
-  (LDA/DP/X #x00)		; get the corresponding tile from RAM
-  ; VRAM data write mode is still %10000000
-  (STA (addr #x2118))		; write
-  (STZ (addr #x2119))		; this is the hi-byte
-  (INX)
-  (CPX.l 9)			; finished?
-  (BNE (label-ref -))			; no, go back
+  (DO-WHILE
+       (REP #b00100000)		; 16 bit A
+       (LDA.w #x0000)		; empty it
+       (SEP #b00100000)		; 8 bit a
+       (LDA.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
+       (REP #b00100000)
+       (CLC)
+       (ADC #x4000)		; add $4000 to the value
+       (STA (addr #x2116))		; write to VRAM from here
+       (LDA.w #x0000)		; reset A while it's still 16 bit
+       (SEP #b00100000)		; 8 bit A
+       (LDA/DP/X #x00)		; get the corresponding tile from RAM
+                                        ; VRAM data write mode is still %10000000
+       (STA (addr #x2118))		; write
+       (STZ (addr #x2119))		; this is the hi-byte
+       (INX)
+       (CPX.l 9)			; finished?
+       BNE)			; no, go back
   (JMP (label-ref forever)))
 
 (define-section Conversiontable

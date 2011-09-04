@@ -57,46 +57,46 @@
   
   (LDA (addr #x0201))	; get back the temp value
   (AND #b11000000)	; Care only about B AND Y
-  (BEQ (label-ref +))		; if empty, skip this
-  ; so, B or Y is pressed. Let's say B is O,
-  ; AND Y is X.
-  (CMP #b11000000)	; both are pressed?
-  (BEQ (label-ref +))		; then don't do anything
-  (CMP #b10000000)	; B?
-  (BNE (label-ref ++))		; now, try Y
-  ; B is pressed, write an O ($08)
-  ; we have to tell the cursor position,
-  ; AND calculate an address from that
-  ; Formula: Address=3*Y+X
-  (LDA (addr #x0101))	; get Y
-  (STA (addr #x0202))	; put it to a temp value
-  (CLC)
-  (ADC (addr #x0202))	; multiply by 3 - an easy way
-  (ADC (addr #x0202))	; A*3=A+A+A :)
-  (ADC (addr #x0100))	; add X
-  ; Now A contains our address
-  (LDX #x0000)	; be on the safe side
-  (TAX)
-  (LDA #x08)
-  (STA/DP/X #x00)	; put $08 to the good address
-  (JMP (label-ref +))		; done with this
-  
-  (label ++)		; now for Y
-  (CMP #b01000000)	; Y?
-  (BNE (label-ref +))		; no, jump forward (this should not happen)
-  ; Y is pressed, write an X ($0A)
-  (LDA (addr #x0101))	; get Y
-  (STA (addr #x0202))	; put it to a temp value
-  (CLC)
-  (ADC (addr #x0202))	; multiply by 3 - an easy way
-  (ADC (addr #x0202))	; A*3=A+A+A :)
-  (ADC (addr #x0100))	; add X
-  ; Now A contains our address
-  (LDX #x00)	; be on the safe side
-  (TAX)
-  (LDA #x0A)
-  (STA/DP/X #x00)	; put $0A to the good address
-  (label +)		; finished putting tiles
+  (LET/RETURN return
+              (UNLESS BEQ	; if empty, skip this
+                                        ; so, B or Y is pressed. Let's say B is O,
+                                        ; AND Y is X.
+                      (CMP #b11000000)	; both are pressed?
+                      (UNLESS BEQ		; then don't do anything
+                              (CMP #b10000000)	; B?
+                              (UNLESS BNE 		; now, try Y
+                                        ; B is pressed, write an O ($08)
+                                        ; we have to tell the cursor position,
+                                        ; AND calculate an address from that
+                                        ; Formula: Address=3*Y+X
+                                      (LDA (addr #x0101))	; get Y
+                                      (STA (addr #x0202))	; put it to a temp value
+                                      (CLC)
+                                      (ADC (addr #x0202))	; multiply by 3 - an easy way
+                                      (ADC (addr #x0202))	; A*3=A+A+A :)
+                                      (ADC (addr #x0100))	; add X
+                                        ; Now A contains our address
+                                      (LDX #x0000)	; be on the safe side
+                                      (TAX)
+                                      (LDA #x08)
+                                      (STA/DP/X #x00)	; put $08 to the good address
+                                      (JMP (label-ref return)))		; done with this
+                              
+                                        ; now for Y
+                              (CMP #b01000000)	; Y?
+                              (UNLESS BNE		; no, jump forward (this should not happen)
+                                        ; Y is pressed, write an X ($0A)
+                                      (LDA (addr #x0101))	; get Y
+                                      (STA (addr #x0202))	; put it to a temp value
+                                      (CLC)
+                                      (ADC (addr #x0202))	; multiply by 3 - an easy way
+                                      (ADC (addr #x0202))	; A*3=A+A+A :)
+                                      (ADC (addr #x0100))	; add X
+                                        ; Now A contains our address
+                                      (LDX #x00)	; be on the safe side
+                                      (TAX)
+                                      (LDA #x0A)
+                                      (STA/DP/X #x00)))))		; finished putting tiles
   
   ; cursor moving comes now
   (LDA (addr #x0201))	; get control
@@ -104,39 +104,35 @@
   (STA (addr #x0201))	; store this
   
   (CMP #b00001000)	; up?
-  (BNE (label-ref +))		; if not, skip
-  (LDA (addr #x0101))	; get scroll Y
-  (CMP #x00)	; if on the top,
-  (BEQ (label-ref +))		; don't do anything
-  (DEC (addr #x0101))	; sub 1 from Y
-  (label +)
+  (UNLESS BNE		; if not, skip
+          (LDA (addr #x0101))	; get scroll Y
+          (CMP #x00)	; if on the top,
+          (UNLESS BEQ		; don't do anything
+                  (DEC (addr #x0101))))	; sub 1 from Y  
   
   (LDA (addr #x0201))	; get control
   (CMP #b00000100)	; down?
-  (BNE (label-ref +))		; if not, skip
-  (LDA (addr #x0101))
-  (CMP #x02)	; if on the bottom,
-  (BEQ (label-ref +))		; don't do anything
-  (INC (addr #x0101))	; add 1 to Y
-  (label +)
+  (UNLESS BNE		; if not, skip
+          (LDA (addr #x0101))
+          (CMP #x02)	; if on the bottom,
+          (UNLESS BEQ		; don't do anything
+                  (INC (addr #x0101))))	; add 1 to Y
   
   (LDA (addr #x0201))	; get control
   (CMP #b00000010)	; left?
-  (BNE (label-ref +))		; if not, skip
-  (LDA (addr #x0100))
-  (CMP #x00)	; if on the left,
-  (BEQ (label-ref +))		; don't do anything
-  (DEC (addr #x0100))	; sub 1 from X
-  (label +)
+  (UNLESS BNE		; if not, skip
+          (LDA (addr #x0100))
+          (CMP #x00)	; if on the left,
+          (UNLESS BEQ		; don't do anything
+                  (DEC (addr #x0100))))	; sub 1 from X  
   
   (LDA (addr #x0201))	; get control
   (CMP #b00000001)	; right?
-  (BNE (label-ref +))		; if not, skip
-  (LDA (addr #x0100))
-  (CMP #x02)	; if on the right,
-  (BEQ (label-ref +))		; don't do anything
-  (INC (addr #x0100))	; add 1 to X
-  (label +)
+  (UNLESS BNE		; if not, skip
+          (LDA (addr #x0100))
+          (CMP #x02)	; if on the right,
+          (UNLESS BEQ		; don't do anything
+                  (INC (addr #x0100))))	; add 1 to X
   (RTI))		; F|NisH3D!
 ;--------------------------------------
 
@@ -150,12 +146,12 @@
   (SEP #b00100000)	;8 bit ab
   
   (LDX #x0000)
-  (label -)
-  (LDA.l/X (label-ref UntitledPalette 'long))
-  (STA (addr #x2122))
-  (INX)
-  (CPX.l 8)
-  (BNE (label-ref -))
+  (DO-WHILE
+   (LDA.l/X (label-ref UntitledPalette 'long))
+   (STA (addr #x2122))
+   (INX)
+   (CPX.l 8)
+   BNE)
   
   ;I'll explain this later
   ;We'll have two palettes, only one color is needed for the second:

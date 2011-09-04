@@ -307,7 +307,15 @@
                body ...
                (snes-label lab))))]))
 
+(define-syntax (LET/RETURN stx)
+  (syntax-parse
+   stx
+   [(_ lab:id body:expr ...)
+    (syntax/loc stx
+      (begin body ...
+             (snes-label lab)))]))
+
 (provide 
  define-section label-ref addr data make-rom
  (rename-out [snes-label label])
- DO-WHILE UNLESS)
+ DO-WHILE UNLESS LET/RETURN)

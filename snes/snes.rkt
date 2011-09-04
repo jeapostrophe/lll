@@ -16,36 +16,8 @@
 
 (struct addr (constant))
 
-(define anonymous-labels (make-hasheq))
 (define (*label-use n [kind 'default])
-  (define effective-n
-    (match n
-      ['+
-       (hash-ref! anonymous-labels '+ (lambda () (gensym '+)))]
-      ['-
-       (hash-ref anonymous-labels '-
-                 (λ () 
-                   (error 'label-ref
-                          "Use of - without previous definition")))]
-      [(? symbol?) n]))
-  (label-use effective-n kind))
-(define (*label-define! n a)
-  (define effective-n
-    (match n
-      ['-
-       (define new (gensym '-))
-       (hash-set! anonymous-labels '- new)
-       new]
-      ['+
-       (define next (gensym '+))
-       (begin0
-         (hash-ref anonymous-labels '+
-                   (λ () 
-                      (error 'label-ref
-                             "Definition of + without previous use")))
-         (hash-set! anonymous-labels '+ next))]
-      [(? symbol?) n]))
-  (label-define! effective-n a))
+  (label-use n kind))
 
 (define-syntax (label-ref stx)
   (syntax-parse
@@ -58,7 +30,7 @@
    stx
    [(_ name:id)
     (syntax/loc stx
-      (*label-define! 'name (current-address)))]))
+      (label-define! 'name (current-address)))]))
 
 (define (data* stx bs)
   (debug-opcode stx)
@@ -256,8 +228,6 @@
 (define-opcode (XBA) #xEB 3)
 (define-opcode (XCE) #xFB 2)
 
-(define current-back-references (make-parameter #f))
-(define current-forward-references (make-parameter #f))
 (define-syntax (define-section stx)
   (syntax-parse
    stx
@@ -281,10 +251,7 @@
          #:force? force?
          #:semi-free? semi-free?
          (λ () 
-           (parameterize
-               ([current-back-references (box empty)]
-                [current-forward-references (box empty)])
-             . e)))))]))
+           . e))))]))
 
 ;; XXX gensym -> generate-temporary
 (define-syntax (DO-WHILE stx)

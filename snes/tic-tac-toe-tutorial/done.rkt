@@ -39,24 +39,22 @@
   (LDA (addr #x4219))	; read joypad (BYSTudlr)
   (STA (addr #x0201))	; store it
   (CMP (addr #x0200))	; compare it with the previous
-  (BNE (label-ref +))		; if not equal, go
-  (RTI)		; if it's equal, then return
+  (UNLESS BNE		; if not equal, go
+          (RTI))		; if it's equal, then return
   
-  (label +)
   (STA (addr #x0200))	; store
   (AND #b00010000)	; get the start button
   ; this will be the delete key
-  (BEQ (label-ref +))		; if it's 0, we don't have to delete
-  (LDX #x0000)
-  (label -)
-  (STZ/DP/X #x00)	; delete addresses $0000 to $0008
-  (INX)
-  (CPX.l #x09)	; this is 9. Guess why (homework :) )
-  (BNE (label-ref -))
-  (STZ (addr #x0100))	; delete the scroll
-  (STZ (addr #x0101))	; data also
+  (UNLESS BEQ		; if it's 0, we don't have to delete
+          (LDX #x0000)
+          (DO-WHILE
+           (STZ/DP/X #x00)	; delete addresses $0000 to $0008
+           (INX)
+           (CPX.l #x09)	; this is 9. Guess why (homework :) )
+           BNE)
+          (STZ (addr #x0100))	; delete the scroll
+          (STZ (addr #x0101)))	; data also
   
-  (label +)
   (LDA (addr #x0201))	; get back the temp value
   (AND #b11000000)	; Care only about B AND Y
   (BEQ (label-ref +))		; if empty, skip this

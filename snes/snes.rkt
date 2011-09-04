@@ -286,7 +286,28 @@
                 [current-forward-references (box empty)])
              . e)))))]))
 
+;; XXX gensym -> generate-temporary
+(define-syntax (DO-WHILE stx)
+  (syntax-parse
+   stx
+   [(_ body:expr ... branch:id)
+    (with-syntax ([lab (gensym)])
+      (syntax/loc stx
+        (begin (snes-label lab)
+               body ...
+               (branch (label-ref lab)))))]))
+
+(define-syntax (UNLESS stx)
+  (syntax-parse
+   stx
+   [(_ branch:id body:expr ...)
+    (with-syntax ([lab (gensym)])
+      (syntax/loc stx
+        (begin (branch (label-ref lab))
+               body ...
+               (snes-label lab))))]))
 
 (provide 
  define-section label-ref addr data make-rom
- (rename-out [snes-label label]))
+ (rename-out [snes-label label])
+ DO-WHILE UNLESS)

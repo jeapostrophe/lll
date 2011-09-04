@@ -50,18 +50,18 @@
   (STA (addr #x2100))		;turn screen off for now, set brightness to normal
   
   (LDX #x2101)
-  (label _Loop00)		;regs $2101-$210C
-  (STZ/DP/X #x00)		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
-  (INX)
-  (CPX.l #x210D)
-  (BNE (label-ref _Loop00))
-  
-  (label _Loop01)		;regs $210D-$2114
-  (STZ/DP/X #x00)		;Set all BG scroll values to $0000
-  (STZ/DP/X #x00)
-  (INX)
-  (CPX.l #x2115)
-  (BNE (label-ref _Loop01))
+  (DO-WHILE ;regs $2101-$210C
+   (STZ/DP/X #x00)		;set Sprite,Character,Tile sizes to lowest, and set addresses to $0000
+   (INX)
+   (CPX.l #x210D)
+   BNE)
+
+  (DO-WHILE ;regs $210D-$2114
+   (STZ/DP/X #x00)		;Set all BG scroll values to $0000
+   (STZ/DP/X #x00)
+   (INX)
+   (CPX.l #x2115)
+   BNE)
   
   (LDA #x80)		;reg $2115
   (STA (addr #x2115))		; Initialize VRAM transfer mode to word-access, increment by 1
@@ -75,22 +75,22 @@
   (STZ (addr #x211A))		;clear Mode7 setting
   
   (LDX #x211B)
-  (label _Loop02)		;regs $211B-$2120
-  (STZ/DP/X #x00)		;clear out the Mode7 matrix values
-  (STZ/DP/X #x00)
-  (INX)
-  (CPX.l #x2121)
-  (BNE (label-ref _Loop02))
+  (DO-WHILE		;regs $211B-$2120
+   (STZ/DP/X #x00)		;clear out the Mode7 matrix values
+   (STZ/DP/X #x00)
+   (INX)
+   (CPX.l #x2121)
+   BNE)
   
   ;reg $2121 - Color address, doesn't need initilaizing
   ;reg $2122 - Color data, is initialized later
   
   (LDX #x2123)
-  (label _Loop03)		;regs $2123-$2133
-  (STZ/DP/X #x00)		;turn off windows, main screens, sub screens, color addition,
-  (INX)			;fixed color = $00, no super-impose (external synchronization),
-  (CPX.l #x2134)	;no interlaced mode, normal resolution
-  (BNE (label-ref _Loop03))
+  (DO-WHILE		;regs $2123-$2133
+   (STZ/DP/X #x00)		;turn off windows, main screens, sub screens, color addition,
+   (INX)			;fixed color = $00, no super-impose (external synchronization),
+   (CPX.l #x2134)	;no interlaced mode, normal resolution
+   BNE)
   
   ;regs $2134-$2136  - multiplication result, no initialization needed
   ;reg $2137 - software H/V latch, no initialization needed
@@ -151,19 +151,19 @@
   (STZ (addr #x2103))
   (LDX #x80)
   (LDA #xF0)
-  (label _Loop08)
-  (STA (addr #x2104))	;set X = 240
-  (STA (addr #x2104))	;set Y = 240
-  (STZ (addr #x2104))	;set character = $00
-  (STZ (addr #x2104))	;set priority=0, no flips
-  (DEX)
-  (BNE (label-ref _Loop08))
+  (DO-WHILE
+   (STA (addr #x2104))	;set X = 240
+   (STA (addr #x2104))	;set Y = 240
+   (STZ (addr #x2104))	;set character = $00
+   (STZ (addr #x2104))	;set priority=0, no flips
+   (DEX)
+   BNE)
   
   (LDX #x0020)
-  (label _Loop09)
-  (STZ (addr #x2104))		;set size bit=0, x MSB = 0
-  (DEX)
-  (BNE (label-ref _Loop09))
+  (DO-WHILE
+   (STZ (addr #x2104))		;set size bit=0, x MSB = 0
+   (DEX)
+   BNE)
   
   ;**** clear WRAM ********
   
@@ -249,11 +249,11 @@
   
   (STZ (addr #x2121))
   (LDX #x0100)
-  (label ClearPaletteLoop)
-  (STZ (addr #x2122))
-  (STZ (addr #x2122))
-  (DEX)
-  (BNE (label-ref ClearPaletteLoop))
+  (DO-WHILE
+   (STZ (addr #x2122))
+   (STZ (addr #x2122))
+   (DEX)
+   BNE)
   
   (PLP)
   (PLX)

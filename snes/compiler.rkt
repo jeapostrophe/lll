@@ -127,18 +127,21 @@
                   #:rom-banks rom-banks
                   #:id id ; XXX 1-4 letter string
                   #:name name ; XXX 21 bytes, exactly
-                  #:slow-rom? [slow-rom? #f]
-                  #:lo-rom? [lo-rom? #f]
-                  #:cartridge-type [cartridge-type #x00]
+                  #:slow-rom? slow-rom?
+                  #:lo-rom? lo-rom?
+                  #:cartridge-type cartridge-type
                   #:rom-size rom-size
                   #:sram-size sram-size
-                  #:country country-code
-                  #:license-code license-code
-                  #:version version
                   #:native-interrupts native-interrupt->label
                   #:emulation-interrupts emulation-interrupt->label
-                  #:empty-fill [empty-fill #x00]
-                  #:sections [these-sections empty])
+                  . these-sections)
+  ;; fill unused areas with #x00, opcode for BRK.  
+  ;; BRK will crash the snes if executed.
+  (define empty-fill #x00)
+  ;; USA
+  (define country-code #x01)
+  (define license-code #x00)
+  (define version #x00)
   (lambda (pth)
     (define total-rom-size
       (* rom-bank-size 

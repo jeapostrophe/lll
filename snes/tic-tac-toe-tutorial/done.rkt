@@ -323,9 +323,6 @@
    #:cartridge-type #x00             ; #x00 = ROM only, see WLA documentation for others
    #:rom-size #x08                   ; #x08 = 2 Mbits,  see WLA doc for more..
    #:sram-size #x00                  ; No SRAM         see WLA doc for more..
-   #:country #x01                   ; #x01 = U.S.  #x00 = Japan, that's all I know
-   #:license-code #x00              ; Just use #x00
-   #:version #x00                   ; #x00 = 1.00, #x01 = 1.01, etc.
    
    #:native-interrupts
    (hasheq 'COP (label-ref EmptyHandler)
@@ -340,10 +337,5 @@
            'NMI (label-ref VBlank)
            'RESET (label-ref Start) ; where execution starts
            'IRQBRK (label-ref EmptyHandler))
-   
-   ; fill unused areas with #x00, opcode for BRK.  
-   ; BRK will crash the snes if executed.
-   #:empty-fill #x00
-   
-   #:sections 
-   (list InitializeSNESCode Main Vblank EmptyVectors Tiledata Conversiontable)))
+      
+   InitializeSNESCode Main Vblank EmptyVectors Tiledata Conversiontable))

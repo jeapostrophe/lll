@@ -57,46 +57,46 @@
   
   (LDA (addr #x0201))	; get back the temp value
   (AND #b11000000)	; Care only about B AND Y
-  (LET/RETURN return
-              (UNLESS BEQ	; if empty, skip this
+  (with-break
+   (UNLESS BEQ	; if empty, skip this
                                         ; so, B or Y is pressed. Let's say B is O,
                                         ; AND Y is X.
-                      (CMP #b11000000)	; both are pressed?
-                      (UNLESS BEQ		; then don't do anything
-                              (CMP #b10000000)	; B?
-                              (UNLESS BNE 		; now, try Y
+           (CMP #b11000000)	; both are pressed?
+           (UNLESS BEQ		; then don't do anything
+                   (CMP #b10000000)	; B?
+                   (UNLESS BNE 		; now, try Y
                                         ; B is pressed, write an O ($08)
                                         ; we have to tell the cursor position,
                                         ; AND calculate an address from that
                                         ; Formula: Address=3*Y+X
-                                      (LDA (addr #x0101))	; get Y
-                                      (STA (addr #x0202))	; put it to a temp value
-                                      (CLC)
-                                      (ADC (addr #x0202))	; multiply by 3 - an easy way
-                                      (ADC (addr #x0202))	; A*3=A+A+A :)
-                                      (ADC (addr #x0100))	; add X
+                           (LDA (addr #x0101))	; get Y
+                           (STA (addr #x0202))	; put it to a temp value
+                           (CLC)
+                           (ADC (addr #x0202))	; multiply by 3 - an easy way
+                           (ADC (addr #x0202))	; A*3=A+A+A :)
+                           (ADC (addr #x0100))	; add X
                                         ; Now A contains our address
-                                      (LDX #x0000)	; be on the safe side
-                                      (TAX)
-                                      (LDA #x08)
-                                      (STA/DP/X #x00)	; put $08 to the good address
-                                      (JMP (label-ref return)))		; done with this
-                              
+                           (LDX #x0000)	; be on the safe side
+                           (TAX)
+                           (LDA #x08)
+                           (STA/DP/X #x00)	; put $08 to the good address
+                           (BREAK))		; done with this
+                   
                                         ; now for Y
-                              (CMP #b01000000)	; Y?
-                              (UNLESS BNE		; no, jump forward (this should not happen)
+                   (CMP #b01000000)	; Y?
+                   (UNLESS BNE		; no, jump forward (this should not happen)
                                         ; Y is pressed, write an X ($0A)
-                                      (LDA (addr #x0101))	; get Y
-                                      (STA (addr #x0202))	; put it to a temp value
-                                      (CLC)
-                                      (ADC (addr #x0202))	; multiply by 3 - an easy way
-                                      (ADC (addr #x0202))	; A*3=A+A+A :)
-                                      (ADC (addr #x0100))	; add X
+                           (LDA (addr #x0101))	; get Y
+                           (STA (addr #x0202))	; put it to a temp value
+                           (CLC)
+                           (ADC (addr #x0202))	; multiply by 3 - an easy way
+                           (ADC (addr #x0202))	; A*3=A+A+A :)
+                           (ADC (addr #x0100))	; add X
                                         ; Now A contains our address
-                                      (LDX #x00)	; be on the safe side
-                                      (TAX)
-                                      (LDA #x0A)
-                                      (STA/DP/X #x00)))))		; finished putting tiles
+                           (LDX #x00)	; be on the safe side
+                           (TAX)
+                           (LDA #x0A)
+                           (STA/DP/X #x00)))))		; finished putting tiles
   
   ; cursor moving comes now
   (LDA (addr #x0201))	; get control

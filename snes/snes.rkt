@@ -3,6 +3,8 @@
                      racket/list
                      racket/syntax
                      syntax/parse)
+         racket/stxparam
+         racket/splicing
          racket/match
          racket/list
          "compiler.rkt")
@@ -274,16 +276,23 @@
                body ...
                (snes-label lab))))]))
 
-;; XXX Remove label binding, instead give a (RETURN) function
-(define-syntax (LET/RETURN stx)
+(define-syntax-parameter BREAK
+  (lambda (stx) (raise-syntax-error 'BREAK "Only allowed inside with-break" stx))) 
+(define-syntax (with-break stx)
   (syntax-parse
    stx
-   [(_ lab:id body:expr ...)
-    (syntax/loc stx
-      (begin body ...
-             (snes-label lab)))]))
+   [(_ body:expr ...)
+    (with-syntax ([lab (gensym)])
+      (syntax/loc stx
+        (splicing-syntax-parameterize
+         ([BREAK
+           (syntax-rules ()
+             [(_) (JMP (label-ref lab))])])
+         (begin body ...
+                (snes-label lab)))))]))
 
 (provide 
  define-section label-ref addr data make-rom
  (rename-out [snes-label label])
- DO-WHILE UNLESS LET/RETURN)
+ with-break BREAK
+ DO-WHILE UNLESS)

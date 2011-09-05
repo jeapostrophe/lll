@@ -5,14 +5,6 @@
          racket/path
          racket/port)
 
-(struct section (name bank force? semi-free? thunk)
-        #:transparent)
-
-(define (make-section name 
-                      #:bank bank #:force? force? #:semi-free? semi-free?
-                      thunk)
-  (section name bank force? semi-free? thunk))
-
 (define current-labels (make-parameter #f))
 (define current-bank (make-parameter #f))
 (struct label (actual-address bank references)
@@ -134,7 +126,7 @@
                   #:sram-size sram-size
                   #:native-interrupts native-interrupt->label
                   #:emulation-interrupts emulation-interrupt->label
-                  . these-sections)
+                  . banks)
   ;; fill unused areas with #x00, opcode for BRK.  
   ;; BRK will crash the snes if executed.
   (define empty-fill #x00)
@@ -198,15 +190,16 @@
                (format "~a.debug" pth) #:exists 'replace
                (lambda (dout)
                  (parameterize ([current-debug dout])
-                   (for ([s (in-list these-sections)])
-                        (match-define (section name bank force? semi-free? thunk) s)
-                        (define bank-start (hash-ref bank->start bank))
-                        (file-position out bank-start)
-                        (parameterize ([current-bank bank])
-                          (thunk))
-                        (hash-set! bank->start bank (current-address))
-                        (eprintf "Wrote ~a from ~a to ~a in bank ~a\n"
-                                 name (hex bank-start) (hex (current-address)) bank)))))
+                   (for ([sections (in-list banks)]
+                         [bank (in-naturals)])
+                        (for ([thunk (in-list sections)])
+                             (define bank-start (hash-ref bank->start bank))
+                             (file-position out bank-start)
+                             (parameterize ([current-bank bank])
+                               (thunk))
+                             (hash-set! bank->start bank (current-address))
+                             (eprintf "Wrote a section from ~a to ~a in bank ~a\n"
+                                      (hex bank-start) (hex (current-address)) bank))))))
 
            ;; Rewrite labels
            (for ([(label-name l) (in-hash labels)])

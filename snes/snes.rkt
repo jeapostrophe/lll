@@ -230,31 +230,6 @@
 (define-opcode (XBA) #xEB 3)
 (define-opcode (XCE) #xFB 2)
 
-(define-syntax (define-section stx)
-  (syntax-parse
-   stx
-   [(_ name:id
-       (~or
-        (~optional (~seq #:bank bank:expr)
-                   #:defaults ([bank #'0]))
-        (~optional (~seq #:force
-                         (~bind [force? #'#t]))
-                   #:defaults ([force? #'#f]))
-        (~optional (~seq #:semi-free
-                         (~bind [semi-free? #'#t]))
-                   #:defaults ([semi-free? #'#f]))) 
-       ...
-       . e)
-    (syntax/loc stx
-      (define name
-        (make-section 
-         'name 
-         #:bank bank
-         #:force? force?
-         #:semi-free? semi-free?
-         (λ () 
-           . e))))]))
-
 ;; XXX gensym -> generate-temporary
 (define-syntax (DO-WHILE stx)
   (syntax-parse
@@ -291,8 +266,17 @@
          (begin body ...
                 (snes-label lab)))))]))
 
-(provide 
- define-section label-ref addr data make-rom
+(define-syntax (code stx)
+  (syntax-parse
+   stx
+   [(_ e:expr ...)
+    (syntax/loc stx
+      (lambda ()
+        e ...))]))
+
+(provide
+ code
+ label-ref addr data make-rom
  (rename-out [snes-label label])
  with-break BREAK
  DO-WHILE UNLESS)

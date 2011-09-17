@@ -157,138 +157,138 @@
    (STA (addr #x2121))
    (LDA (label-ref Palette2 'long))
    (STA (addr #x2122))
-   (LDA (label-ref Palette2PlusOne 'long) #;(+ (label-ref Palette2) 1))
-        (STA (addr #x2122))
-        (LDX (label-ref UntitledData '&))	; Address
-        (LDA (label-ref UntitledData 'bank))	; of UntitledData 
-        (LDY (* 15 16 2))	; length of data
-        (STX (addr #x4302))	; write
-        (STA (addr #x4304))	; address
-        (STY (addr #x4305))	; AND length
-        (LDA #b00000001)	; set this mode (transferring words)
-        (STA (addr #x4300))
-        (LDA #x18)	; $211[89]: VRAM data write
-        (STA (addr #x4301))	; set destination
-        
-        (LDY #x0000)	; Write to VRAM from $0000
-        (STY (addr #x2116))
-        
-        (LDA #b00000001)	; start DMA, channel 0
-        (STA (addr #x420B))
-        (LDA #b10000000)	; VRAM writing mode
-        (STA (addr #x2115))
-        (LDX #x4000)	; write to vram
-        (STX (addr #x2116))	; from $4000
-        
-                                        ;ugly code starts here - it writes the # shape I mentioned before.
+   (LDA (label-ref Palette2PlusOne 'long)) ; (+ (label-ref Palette2) 1)
+   (STA (addr #x2122))
+   (LDX (label-ref UntitledData '&))	; Address
+   (LDA (label-ref UntitledData 'bank))	; of UntitledData 
+   (LDY (* 15 16 2))	; length of data
+   (STX (addr #x4302))	; write
+   (STA (addr #x4304))	; address
+   (STY (addr #x4305))	; AND length
+   (LDA #b00000001)	; set this mode (transferring words)
+   (STA (addr #x4300))
+   (LDA #x18)	; $211[89]: VRAM data write
+   (STA (addr #x4301))	; set destination
+   
+   (LDY #x0000)	; Write to VRAM from $0000
+   (STY (addr #x2116))
+   
+   (LDA #b00000001)	; start DMA, channel 0
+   (STA (addr #x420B))
+   (LDA #b10000000)	; VRAM writing mode
+   (STA (addr #x2115))
+   (LDX #x4000)	; write to vram
+   (STX (addr #x2116))	; from $4000
+   
+   ;;ugly code starts here - it writes the # shape I mentioned before.
+   (for ([i (in-range 2)])
+        ;;X|X|X
         (for ([i (in-range 2)])
-                                        ;X|X|X
-        (for ([i (in-range 2)])
-        (LDX #x0000)	; tile 0 ( )
-        (STX (addr #x2118))
-        (LDX #x0002)	; tile 2 (|)
-        (STX (addr #x2118)))
+             (LDX #x0000)	; tile 0 ( )
+             (STX (addr #x2118))
+             (LDX #x0002)	; tile 2 (|)
+             (STX (addr #x2118)))
         (LDX #x0000)
         (STX (addr #x2118))
                                         ;first line finished, add BG's
         (for ([i (in-range 27)])
-        (STX (addr #x2118)))	; X=0
+             (STX (addr #x2118)))	; X=0
                                         ;beginning of 2nd line
                                         ;-+-+-
         (for ([i (in-range 2)])
-        (LDX #x0004)	; tile 4 (-)
-        (STX (addr #x2118))
-        (LDX #x0006)	; tile 6 (+)
-        (STX (addr #x2118)))
+             (LDX #x0004)	; tile 4 (-)
+             (STX (addr #x2118))
+             (LDX #x0006)	; tile 6 (+)
+             (STX (addr #x2118)))
         (LDX #x0004)	; tile 4 (-)
         (STX (addr #x2118))
         (LDX #x0000)
         (for ([i (in-range 27)])
-        (STX (addr #x2118))))
-        (for ([i (in-range 2)])
+             (STX (addr #x2118))))
+   (for ([i (in-range 2)])
         (LDX #x0000)	; tile 0 ( )
         (STX (addr #x2118))
         (LDX #x0002)	; tile 2 (|)
         (STX (addr #x2118)))
-        (LDX #x6000)	; BG2 will start here
-        (STX (addr #x2116))
-        (LDX #x000C)	; AND will contain 1 tile
-        (STX (addr #x2118))
+   (LDX #x6000)	; BG2 will start here
+   (STX (addr #x2116))
+   (LDX #x000C)	; AND will contain 1 tile
+   (STX (addr #x2118))
                                         ;set up the screen
-        (LDA #b00110000)	; 16x16 tiles, mode 0
-        (STA (addr #x2105))	; screen mode register
-        (LDA #b01000000)	; data starts from $4000
-        (STA (addr #x2107))	; for BG1
-        (LDA #b01100000)	; AND $6000
-        (STA (addr #x2108))	; for BG2
-        
-        (STZ (addr #x210B))	; BG1 AND BG2 use the $0000 tiles
-        
-        (LDA #b00000011)	; enable bg1&2
-        (STA (addr #x212C))
-        
-                                        ;The PPU doesn't process the top line, so we scroll down 1 line.
-        (REP #x20)	; 16bit a
-        (LDA #x07FF)	; this is -1 for BG1
-        (SEP #x20)	; 8bit a
-        (STA (addr #x210E))	; BG1 vert scroll
-        (XBA)
-        (STA (addr #x210E))
-        
-        (REP #x20)	; 16bit a
-        (LDA #xFFFF)	; this is -1 for BG2
-        (SEP #x20)	; 8bit a
-        (STA (addr #x2110))	; BG2 vert scroll
-        (XBA)
-        (STA (addr #x2110))
-        
-        (LDA #b00001111)	; enable screen, set brightness to 15
-        (STA (addr #x2100))
-        
-        (LDA #b10000001)	; enable NMI AND joypads
-        (STA (addr #x4200))
-        
-        (label forever)
-        (WAI)
-        (REP #b00100000)	; get 16 bit A
-        (LDA.w #x0000)		; empty it
-        (SEP #b00100000)	; 8 bit A
-        (LDA (addr #x0100))		; get our X coord
-        (ConvertX)		; WLA needs a space before a macro name
-        (STA (addr #x210F))		; BG2 horz scroll
-        (XBA)
-        (STA (addr #x210F))		; write 16 bits
-        
-                                        ;now repeat it, but change $0100 to $0101, AND $210F to $2110
-        (REP #b00100000)	; get 16 bit A
-        (LDA.w #x0000)		; empty it
-        (SEP #b00100000)	; 8 bit A
-        (LDA (addr #x0101))		; get our Y coord
-        (ConvertY)		; WLA needs a space before a macro name
-        (STA (addr #x2110))		; BG2 vert scroll
-        (XBA)
-        (STA (addr #x2110))		; write 16 bits
+   (LDA #b00110000)	; 16x16 tiles, mode 0
+   (STA (addr #x2105))	; screen mode register
+   (LDA #b01000000)	; data starts from $4000
+   (STA (addr #x2107))	; for BG1
+   (LDA #b01100000)	; AND $6000
+   (STA (addr #x2108))	; for BG2
+   
+   (STZ (addr #x210B))	; BG1 AND BG2 use the $0000 tiles
+   
+   (LDA #b00000011)	; enable bg1&2
+   (STA (addr #x212C))
+   
+   ;;The PPU doesn't process the top line, so we scroll down 1 line.
+   (REP #x20)	; 16bit a
+   (LDA #x07FF)	; this is -1 for BG1
+   (SEP #x20)	; 8bit a
+   (STA (addr #x210E))	; BG1 vert scroll
+   (XBA)
+   (STA (addr #x210E))
+   
+   (REP #x20)	; 16bit a
+   (LDA #xFFFF)	; this is -1 for BG2
+   (SEP #x20)	; 8bit a
+   (STA (addr #x2110))	; BG2 vert scroll
+   (XBA)
+   (STA (addr #x2110))
+   
+   (LDA #b00001111)	; enable screen, set brightness to 15
+   (STA (addr #x2100))
+   
+   (LDA #b10000001)	; enable NMI AND joypads
+   (STA (addr #x4200))
+   
+   (label forever)
+   (WAI)
+   (REP #b00100000)	; get 16 bit A
+   (LDA.w #x0000)		; empty it
+   (SEP #b00100000)	; 8 bit A
+   (LDA (addr #x0100))		; get our X coord
+   (ConvertX)		; WLA needs a space before a macro name
+   (STA (addr #x210F))		; BG2 horz scroll
+   (XBA)
+   (STA (addr #x210F))		; write 16 bits
+   
+   ;;now repeat it, but change $0100 to $0101, AND $210F to $2110
+   (REP #b00100000)	; get 16 bit A
+   (LDA.w #x0000)		; empty it
+   (SEP #b00100000)	; 8 bit A
+   (LDA (addr #x0101))		; get our Y coord
+   (ConvertY)		; WLA needs a space before a macro name
+   (STA (addr #x2110))		; BG2 vert scroll
+   (XBA)
+   (STA (addr #x2110))		; write 16 bits
                                         ;--------------------------------------
-        (LDX #x0000)		; reset our counter
-        (DO-WHILE
-        (REP #b00100000)		; 16 bit A
-        (LDA.w #x0000)		; empty it
-        (SEP #b00100000)		; 8 bit a
-        (LDA.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
-        (REP #b00100000)
-        (CLC)
-        (ADC #x4000)		; add $4000 to the value
-        (STA (addr #x2116))		; write to VRAM from here
-        (LDA.w #x0000)		; reset A while it's still 16 bit
-        (SEP #b00100000)		; 8 bit A
-        (LDA/DP/X #x00)		; get the corresponding tile from RAM
+   (LDX #x0000)		; reset our counter
+   (DO-WHILE
+    (REP #b00100000)		; 16 bit A
+    (LDA.w #x0000)		; empty it
+    (SEP #b00100000)		; 8 bit a
+    (LDA.l/X (label-ref VRAMtable 'long))	; this is a long indexed address, nice :)
+    (REP #b00100000)
+    (CLC)
+    (ADC #x4000)		; add $4000 to the value
+    (STA (addr #x2116))		; write to VRAM from here
+    (LDA.w #x0000)		; reset A while it's still 16 bit
+    (SEP #b00100000)		; 8 bit A
+    (LDA/DP/X #x00)		; get the corresponding tile from RAM
                                         ; VRAM data write mode is still %10000000
-        (STA (addr #x2118))		; write
-        (STZ (addr #x2119))		; this is the hi-byte
-        (INX)
-        (CPX.l 9)			; finished?
-        BNE)			; no, go back
-        (JMP (label-ref forever))))
+    (STA (addr #x2118))		; write
+    (STZ (addr #x2119))		; this is the hi-byte
+    (INX)
+    (CPX.l 9)			; finished?
+    BNE)			; no, go back
+   (JMP (label-ref forever))))
 
 (define Conversiontable
   (code 

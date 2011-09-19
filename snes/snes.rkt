@@ -43,6 +43,21 @@
     (quasisyntax/loc stx
       (data* #'#,stx e))]))
 
+(define-syntax (code stx)
+  (syntax-parse
+   stx
+   [(_ e:expr ...)
+    (syntax/loc stx
+      (lambda ()
+        e ...))]))
+
+
+;;;;;;; Above was the basic library
+(provide
+ code
+ label-ref addr data make-rom
+ (rename-out [snes-label label]))
+
 (define-syntax (define-opcode* stx)
   (syntax-parse
    stx
@@ -230,6 +245,8 @@
 (define-opcode (XBA) #xEB 3)
 (define-opcode (XCE) #xFB 2)
 
+;;;;;;;;;;; Those things above provided the opcodes
+
 ;; XXX gensym -> generate-temporary
 (define-syntax (DO-WHILE stx)
   (syntax-parse
@@ -266,17 +283,82 @@
          (begin body ...
                 (snes-label lab)))))]))
 
-(define-syntax (code stx)
-  (syntax-parse
-   stx
-   [(_ e:expr ...)
-    (syntax/loc stx
-      (lambda ()
-        e ...))]))
-
 (provide
- code
- label-ref addr data make-rom
- (rename-out [snes-label label])
  with-break BREAK
  DO-WHILE UNLESS)
+
+;;;;;;;;;;; Now for the SET! macro
+
+(define-syntax (A stx) (raise-syntax-error 'A "Only valid inside SET!" stx))
+(define-syntax (X stx) (raise-syntax-error 'X "Only valid inside SET!" stx))
+(define-syntax (DP stx) (raise-syntax-error 'DP "Only valid inside SET!" stx))
+(define-syntax (P stx) (raise-syntax-error 'P "Only valid inside SET!" stx))
+(define-syntax (@ stx) (raise-syntax-error '@ "Only valid inside SET!" stx))
+
+(define-syntax (SET! stx)
+  (syntax-parse
+   stx
+   #:literals (SET! A P X DP
+                    @
+                    add1 sub1 +
+                    bitwise-and arithmetic-shift bitwise-xor
+                    bitwise-not bitwise-ior)
+   [(SET! (@ e1:expr) (sub1 (@ e2:expr)))
+    #:fail-unless (equal? (syntax->datum #'e1) (syntax->datum #'e2)) #f
+    (syntax/loc stx
+      (DEC (addr e1)))]
+   [(SET! (@ e1:expr) (add1 (@ e2:expr)))
+    #:fail-unless (equal? (syntax->datum #'e1) (syntax->datum #'e2)) #f
+    (syntax/loc stx
+      (INC (addr e1)))]
+   [(SET! X A)
+    (syntax/loc stx
+      (TAX))]
+   [(SET! X (add1 X))
+    (syntax/loc stx
+      (INX))]
+   [(SET! (@ (+ DP X e:expr)) 0)
+    (syntax/loc stx
+      (STZ/DP/X e))]
+   [(SET! (@ (+ DP X e:expr)) A)
+    (syntax/loc stx
+      (STA/DP/X e))]
+   [(SET! (@ e:expr) 0)
+    (syntax/loc stx
+      (STZ (addr e)))]
+   [(SET! X e:expr)
+    (syntax/loc stx
+      (LDX e))]
+   [(SET! P (bitwise-and P (bitwise-not e:expr)))
+    (syntax/loc stx
+      (REP e))]
+   [(SET! P (bitwise-ior P e:expr))
+    (syntax/loc stx
+      (SEP e))]
+   [(SET! A (+ A (@ e:expr)))
+    (syntax/loc stx
+      (ADC (addr e)))]
+   [(SET! A (add1 A))
+    (syntax/loc stx
+      (INA))]
+   [(SET! A (bitwise-xor A e:expr))
+    (syntax/loc stx
+      (EOR e))]
+   [(SET! A (arithmetic-shift 1 A))
+    (syntax/loc stx
+      (ASL/A))]
+   [(SET! (@ e:expr) A)
+    (syntax/loc stx
+      (STA (addr e)))]
+   [(SET! A (bitwise-and A e:expr))
+    (syntax/loc stx
+      (AND e))]
+   [(SET! A (@ e:expr))
+    (syntax/loc stx
+      (LDA (addr e)))]
+   [(SET! A e:expr)
+    (syntax/loc stx
+      (LDA e))]))
+
+(provide SET!
+         DP @ A P X)

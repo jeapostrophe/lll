@@ -13,48 +13,49 @@
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
   (for ([i (in-range 5)])
-       (ASL/A))		; multiply A by 32
-  (REP #b00100000)	; 16 bit A
-  (EOR #xFFFF)	; this will do A=1-A
-  (INA)		; A=A+1
-  (SEP #b00100000))	; 8 bit A
+       (SET! A (arithmetic-shift 1 A)))		; multiply A by 32
+  (SET! P (bitwise-and P (bitwise-not #b00100000))) ; 16 bit A
+  (SET! A (bitwise-xor A #xFFFF))	; this will do A=1-A
+  (SET! A (add1 A))		; A=A+1
+  (SET! P (bitwise-ior P #b00100000)))	; 8 bit A
 
 (define (ConvertY)
   ; Data in: our coord in A
   ; Data out: SNES scroll data in C (the 16 bit A)
   (for ([i (in-range 5)])
-       (ASL/A))		; multiply A by 32
-  (REP #b00100000)	; 16 bit A
-  (EOR #xFFFF)	; this will do A=1-A
-  (SEP #b00100000))	; 8 bit A
+       (SET! A (arithmetic-shift 1 A)))		; multiply A by 32
+  (SET! P (bitwise-and P (bitwise-not #b00100000))) ; 16 bit A
+  (SET! A (bitwise-xor A #xFFFF))	; this will do A=1-A
+  (SET! P (bitwise-ior P #b00100000)))	; 8 bit A
 
 (define Vblank
   (code  ;--------------------------------------
    (label VBlank)
-   (LDA (addr #x4212))	; get joypad status
-   (AND #b00000001)	; if joy is not ready
-   (BNE (label-ref VBlank))	; wait
-   (LDA (addr #x4219))	; read joypad (BYSTudlr)
-   (STA (addr #x0201))	; store it
+   (DO-WHILE
+    (SET! A (@ #x4212)) ; get joypad status
+    (SET! A (bitwise-and A #b00000001)) ; if joy is not ready
+    BNE) ; wait
+   (SET! A (@ #x4219))	; read joypad (BYSTudlr)
+   (SET! (@ #x0201) A)	; store it
    (CMP (addr #x0200))	; compare it with the previous
    (UNLESS BNE		; if not equal, go
            (RTI))		; if it's equal, then return
-   
-   (STA (addr #x0200))	; store
-   (AND #b00010000)	; get the start button
+
+   (SET! (@ #x0200) A)	; store
+   (SET! A (bitwise-and A #b00010000))	; get the start button
                                         ; this will be the delete key
    (UNLESS BEQ		; if it's 0, we don't have to delete
-           (LDX #x0000)
+           (SET! X #x0000)
            (DO-WHILE
-            (STZ/DP/X #x00)	; delete addresses $0000 to $0008
-            (INX)
+            (SET! (@ (+ DP X #x00)) 0) ; delete addresses $0000 to $0008
+            (SET! X (add1 X))
             (CPX.l #x09)	; this is 9. Guess why (homework :) )
             BNE)
-           (STZ (addr #x0100))	; delete the scroll
-           (STZ (addr #x0101)))	; data also
-   
-   (LDA (addr #x0201))	; get back the temp value
-   (AND #b11000000)	; Care only about B AND Y
+           (SET! (@ #x0100) 0)	; delete the scroll
+           (SET! (@ #x0101) 0))	; data also
+
+   (SET! A (@ #x0201))	; get back the temp value
+   (SET! A (bitwise-and A #b11000000))	; Care only about B AND Y
    (with-break
     (UNLESS BEQ	; if empty, skip this
                                         ; so, B or Y is pressed. Let's say B is O,
@@ -67,70 +68,71 @@
                                         ; we have to tell the cursor position,
                                         ; AND calculate an address from that
                                         ; Formula: Address=3*Y+X
-                            (LDA (addr #x0101))	; get Y
-                            (STA (addr #x0202))	; put it to a temp value
+                            (SET! A (@ #x0101))	; get Y
+                            (SET! (@ #x0202) A)	; put it to a temp value
                             (CLC)
-                            (ADC (addr #x0202))	; multiply by 3 - an easy way
-                            (ADC (addr #x0202))	; A*3=A+A+A :)
-                            (ADC (addr #x0100))	; add X
+                            (SET! A (+ A (@ #x0202)))	; multiply by 3 - an easy way
+                            (SET! A (+ A (@ #x0202)))	; A*3=A+A+A :)
+                            (SET! A (+ A (@ #x0100)))	; add X
                                         ; Now A contains our address
-                            (LDX #x0000)	; be on the safe side
-                            (TAX)
-                            (LDA #x08)
-                            (STA/DP/X #x00)	; put $08 to the good address
+                            (SET! X #x0000)	; be on the safe side
+                            (SET! X A)
+                            (SET! A #x08)
+                            (SET! (@ (+ DP X #x00)) A)	; put $08 to the good address
                             (BREAK))		; done with this
                     
                                         ; now for Y
                     (CMP #b01000000)	; Y?
                     (UNLESS BNE		; no, jump forward (this should not happen)
                                         ; Y is pressed, write an X ($0A)
-                            (LDA (addr #x0101))	; get Y
-                            (STA (addr #x0202))	; put it to a temp value
+                            (SET! A (@ #x0101))	; get Y
+                            (SET! (@ #x0202) A)	; put it to a temp value
                             (CLC)
-                            (ADC (addr #x0202))	; multiply by 3 - an easy way
-                            (ADC (addr #x0202))	; A*3=A+A+A :)
-                            (ADC (addr #x0100))	; add X
+                            (SET! A (+ A (@ #x0202)))	; multiply by 3 - an easy way
+                            (SET! A (+ A (@ #x0202)))	; A*3=A+A+A :)
+                            (SET! A (+ A (@ #x0100)))	; add X
                                         ; Now A contains our address
-                            (LDX #x00)	; be on the safe side
-                            (TAX)
-                            (LDA #x0A)
-                            (STA/DP/X #x00)))))		; finished putting tiles
+                            (SET! X #x00)	; be on the safe side
+                            (SET! X A)
+                            (SET! A #x0A)
+                            (SET! (@ (+ DP X #x00)) A)))))		; finished putting tiles
    
-                                        ; cursor moving comes now
-   (LDA (addr #x0201))	; get control
-   (AND #b00001111)	; care about directions
-   (STA (addr #x0201))	; store this
+   ;; cursor moving comes now
+   (SET! A (@ #x0201))	; get control
+   (SET! A (bitwise-and A #b00001111))	; care about directions
+   (SET! (@ #x0201) A)	; store this
    
    (CMP #b00001000)	; up?
    (UNLESS BNE		; if not, skip
-           (LDA (addr #x0101))	; get scroll Y
+           (SET! A (@ #x0101))	; get scroll Y
            (CMP #x00)	; if on the top,
            (UNLESS BEQ		; don't do anything
-                   (DEC (addr #x0101))))	; sub 1 from Y  
-   
-   (LDA (addr #x0201))	; get control
+                   (SET! (@ #x0101) (sub1 (@ #x0101)))))	; sub 1 from Y  
+
+   (SET! A (@ #x0201))	; get control
    (CMP #b00000100)	; down?
    (UNLESS BNE		; if not, skip
-           (LDA (addr #x0101))
+           (SET! A (@ #x0101))
            (CMP #x02)	; if on the bottom,
            (UNLESS BEQ		; don't do anything
-                   (INC (addr #x0101))))	; add 1 to Y
-   
-   (LDA (addr #x0201))	; get control
+                   (SET! (@ #x0101) (add1 (@ #x0101)))))	; add 1 to Y
+
+   (SET! A (@ #x0201))	; get control
    (CMP #b00000010)	; left?
    (UNLESS BNE		; if not, skip
-           (LDA (addr #x0100))
+           (SET! A (@ #x0100))
            (CMP #x00)	; if on the left,
            (UNLESS BEQ		; don't do anything
-                   (DEC (addr #x0100))))	; sub 1 from X  
-   
-   (LDA (addr #x0201))	; get control
+                   (SET! (@ #x0100) (sub1 (@ #x0100)))))	; sub 1 from X  
+
+   (SET! A (@ #x0201))	; get control
    (CMP #b00000001)	; right?
    (UNLESS BNE		; if not, skip
-           (LDA (addr #x0100))
+           (SET! A (@ #x0100))
            (CMP #x02)	; if on the right,
            (UNLESS BEQ		; don't do anything
-                   (INC (addr #x0100))))	; add 1 to X
+                   (SET! (@ #x0100) (add1 (@ #x0100)))))	; add 1 to X
+   
    (RTI)))		; F|NisH3D!
 ;--------------------------------------
 

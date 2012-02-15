@@ -1,3 +1,16 @@
 compiler.rkt -- deals with resolving label references and writing the rom image
 snes.rkt -- opcodes and syntactic sugar that removes the need for explicit jumps
 tic-tac-toe-tutorial/done.rkt -- a tic-tac-toe game 
+
+RESOURCES:
+
+http://patpend.net/technical/snes/sneskart.html#embededcartridge
+file:///Users/jay/Dev/scm/github.jeapostrophe/lll/dist/wla_dx_9.5/README
+http://wiki.superfamicom.org/snes/show/65816+Reference#fn:4
+http://board.byuu.org/viewforum.php?f=16&sid=1ba2dd44dd2a78fd917ffe5329282881
+http://wiki.superfamicom.org/snes/show/HomePage
+
+Look at:
+
+http://ahefner.livejournal.com/20528.html
+Staapl
